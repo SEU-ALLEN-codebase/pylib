@@ -206,6 +206,16 @@ def trim_out_of_box(tree_orig, imgshape, keep_candidate_points=True):
                         break
     return tree
 
+def get_specific_neurite(tree, type_id):
+    if (not isinstance(type_id, list)) and (not isinstance(type_id, tuple)):
+        type_id = (type_id,)
+    
+    new_tree = []
+    for leaf in tree:
+        if leaf[1] in type_id:
+            new_tree.append(leaf)
+    return new_tree
+
 def shift_swc(swc_file, sx, sy, sz):
     if type(swc_file) == list:
         tree = swc_file
