@@ -155,6 +155,7 @@ class AbstractTree(object):
 class Morphology(AbstractTree):
     def __init__(self, tree, p_soma=-1):
         super(Morphology, self).__init__(tree, p_soma=p_soma)
+        self.get_critical_points()
 
     def get_path_idx_dict(self):
         def find_path_dfs(idx, path_dict, pos_dict, child_dict):
@@ -280,7 +281,6 @@ if __name__ == '__main__':
     swcfile = '/media/lyf/storage/seu_mouse/swc/xy1z1/18455_00159.swc'
     tree = parse_swc(swcfile)
     morph = Morphology(tree, p_soma=-1)
-    morph.get_critical_points()
     new_tree = morph.convert_to_topology_tree()
     
     topo = Topology(new_tree, p_soma=-1)
