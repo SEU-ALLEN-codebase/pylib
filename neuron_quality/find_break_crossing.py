@@ -20,7 +20,7 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
     - pt: the start point, [coordinate]
     - anchor_idx: the first node on swc tree to trace, first child or parent node
     - is_parent: whether the anchor_idx is the parent of `pt`, otherwise child. 
-                 if the node has several child, a random one is selected
+                 if an furcation points encounted, then break
     - morph: Morphology object for current tree
     - dist: distance threshold
     - return_center_point: whether to return the point with exact distance or
@@ -44,13 +44,14 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
             pts.append(cc)
 
             if is_parent:
-                anchor_idx = morph.pos_dict[anchor_idx][-1]
+                anchor_idx = morph.pos_dict[anchor_idx][6]
+                if len(morph.child_dict[anchor_idx]) > 1:
+                    break
             else:
-                if anchor_idx not in morph.child_dict:
+                if (anchor_idx not in morph.child_dict) or (len(morph.child_dict[anchor_idx]) > 1):
                     break
                 else:
-                    anchor_idxs = morph.child_dict[anchor_idx]
-                    anchor_idx = anchor_idxs[np.random.randint(0, len(anchor_idxs))]
+                    anchor_idxs = morph.child_dict[anchor_idx][0]
 
     # interpolate to find the exact point
     dd = d - dist
