@@ -68,7 +68,7 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
     return pt_a
 
 
-class breakFinder(object):
+class BreakFinder(object):
     def __init__(self, morph, soma_radius=10, dist_thresh=4.0, line_length=5.0, angle_thresh=90.):
         self.morph = morph
 

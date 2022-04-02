@@ -187,33 +187,39 @@ class Morphology(AbstractTree):
         """
         The original tree contains unifurcation, which should be merged
         """
-        def convert_dfs(idx, child_dict, unifurcation, pos_dict_copy, new_tree):
-            leaf = pos_dict_copy[idx]
-            if idx not in child_dict:
-                new_tree.append(leaf)
-                return 
 
-            if idx in unifurcation:
-                # delete current node
-                # change all childs's parent node inplace
-                p_idx = leaf[-1]
-                for child_idx in child_dict[idx]:
-                    tmp_leaf = pos_dict_copy[child_idx]
-                    tmp_leaf = (*tmp_leaf[:-1], p_idx)
-                    pos_dict_copy[child_idx] = tmp_leaf
-            else:
-                new_tree.append(leaf)
+        def update_node(old_node, new_par_id):
+            tmp_node = (*old_node[:6], new_par_id, *old_node[7:])
+            return tmp_node
 
-            for child_idx in child_dict[idx]:
-                convert_dfs(child_idx, child_dict, unifurcation, pos_dict_copy, new_tree)
-                    
-
-
+        seg_dict = {}
         new_tree = []
-        pos_dict_copy = copy.deepcopy(self.pos_dict)
-        convert_dfs(self.idx_soma, self.child_dict, self.unifurcation, pos_dict_copy, new_tree)
+        for tip in self.tips:
+            seg_dict[tip] = []  # intialize current seg
+            cur_node_id = tip
+            seg_start_id = tip
+            while True:
+                par_node_id = self.pos_dict[cur_node_id][6]    # parent node
+                if par_node_id == -1:
+                    break
+                if par_node_id in self.unifurcation:
+                    seg_dict[seg_start_id].append(par_node_id)
+                else:
+                    new_tree.append(update_node(self.pos_dict[seg_start_id], par_node_id))
+                    if par_node_id in seg_dict:
+                        break
+                    else:
+                        seg_dict[par_node_id] = []
+
+                    seg_start_id = par_node_id
+                
+                cur_node_id = par_node_id
+        # put the root/soma node
+        new_tree.append(self.pos_dict[self.idx_soma])
+
         print(f'{len(new_tree)} #nodes left after merging of the original {len(self.tree)} # nodes')
-        return new_tree
+        print(f'{len(self.tips)}, {len(self.bifurcation)}, {len(self.multifurcation)}')
+        return new_tree, seg_dict
 
 
 class Topology(AbstractTree):
@@ -278,10 +284,10 @@ class Topology(AbstractTree):
 if __name__ == '__main__':
     from swc_handler import parse_swc, write_swc
 
-    swcfile = '/media/lyf/storage/seu_mouse/swc/xy1z1/18455_00159.swc'
+    swcfile = '/media/lyf/storage/seu_mouse/swc/xy1z1/17109_6201_x4328_y6753.swc'
     tree = parse_swc(swcfile)
     morph = Morphology(tree, p_soma=-1)
-    new_tree = morph.convert_to_topology_tree()
+    new_tree, _ = morph.convert_to_topology_tree()
     
     topo = Topology(new_tree, p_soma=-1)
     #import ipdb; ipdb.set_trace()
