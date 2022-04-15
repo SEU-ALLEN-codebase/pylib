@@ -14,7 +14,7 @@ import os, sys, glob
 import subprocess
 import numpy as np
 
-from swc_handler import parse_swc, write_swc
+from swc_handler import parse_swc, write_swc, scale_swc
 from file_io import load_image
 from math_utils import calc_included_angles_from_coords, calc_included_angles_from_vectors
 from morphology import Morphology, Topology
@@ -26,7 +26,7 @@ class TopoFeatures(object):
     Calculate the morphological features according from swc
     """
 
-    def __init__(self, swcfile, line_length=8.0):
+    def __init__(self, swcfile, line_length=8.0, z_factor=1/0.23):
         if isinstance(swcfile, str):
             tree = parse_swc(swcfile)
         elif isinstance(swcfile, list):
@@ -34,8 +34,9 @@ class TopoFeatures(object):
         else:
             raise NotImplementedError(f"Parameter swcfile must be either str or list, but not {type(swcfile)}")
 
-        self.morph = Morphology(tree)
-        self.swcfile = swcfile
+        tree_iso = scale_swc(tree, scale=(1.0,1.0,z_factor))
+
+        self.morph = Morphology(tree_iso)
         topo_tree, seg_dict = self.morph.convert_to_topology_tree()
         self.topo = Topology(topo_tree)
         self.seg_dict = seg_dict
@@ -122,6 +123,15 @@ class TopoFeatures(object):
                 else:
                     nchilds_dict[idx] = (len(self.topo.child_dict[par_id]), len(self.topo.child_dict[idx]))
         return nchilds_dict
+
+    def get_relative_coords(self):
+        soma_pos = np.array(self.morph.pos_dict[self.morph.idx_soma][2:5])
+        rcoords = {}
+        for seg_id, seg_nodes in self.seg_dict.items():
+            coord = np.array(self.morph.pos_dict[seg_id][2:5])
+            rcoord = coord - soma_pos
+            rcoords[seg_id] = rcoord
+        return rcoords
      
     def calc_all_features(self):
         _, morph_lengths_dict = self.morph.calc_seg_lengths()
@@ -145,11 +155,24 @@ class TopoFeatures(object):
         return topo_features
      
 
-class TopoImFeatures(TopoFeatures):
-    def __init__(self, swcfile, imgfile, line_length=8, radii_cache_dir='./radii_cache'):
-        super(TopoImFeatures, self).__init__(swcfile, line_length)
+class TopoImFeatures(object):
+    def __init__(self, swcfile, imgfile, radii_cache_dir='./radii_cache'):
         self.radii_cache_dir = radii_cache_dir
+        
+        if isinstance(swcfile, str):
+            tree = parse_swc(swcfile)
+        elif isinstance(swcfile, list):
+            tree = swcfile
+        else:
+            raise NotImplementedError(f"Parameter swcfile must be either str or list, but not {type(swcfile)}")
 
+        # get anisotropic object
+        self.morph = Morphology(tree)
+        topo_tree, seg_dict = self.morph.convert_to_topology_tree()
+        self.topo = Topology(topo_tree)
+        self.seg_dict = seg_dict
+        self.swcfile = swcfile
+        
         if isinstance(imgfile, str):
             self.img = load_image(imgfile)
         elif isinstance(imgfile, np.ndarray):
@@ -217,13 +240,10 @@ class TopoImFeatures(TopoFeatures):
         return rad_dict
         
     def calc_all_features(self):
-        tf = super().calc_all_features()
         # image features
         tif = {}
         tif['intensity'] = self.seg_intensities()
         tif['radii'] = self.seg_radii()
-        for k, f in tf.items():
-            tif[k]  = f
 
         return tif
 
@@ -232,8 +252,16 @@ if __name__ == '__main__':
     imgfile = '/media/lyf/storage/seu_mouse/crop_data/processed/dendriteImageMaxR/tiff/18869/10048_8350_4580.tiff'
     radius_dir = '/media/lyf/storage/seu_mouse/crop_data/processed/dendriteImageMaxR/app2_radii'
     line_length = 8
-    tif = TopoImFeatures(swcfile, imgfile, line_length=line_length, radii_cache_dir=radius_dir)
-    features = tif.calc_all_features()
-    for key, feat in features.items():
+    z_factor = 1/0.23
+
+    tf = TopoFeatures(swcfile, line_length=line_length, z_factor=z_factor)
+    tf_feat = tf.calc_all_features()
+    tif = TopoImFeatures(swcfile, imgfile, radii_cache_dir=radius_dir)
+    tif_feat = tif.calc_all_features()
+    feats = tf_feat
+    for k, v in tif_feat.items():
+        feats[k] = v
+
+    for key, feat in feats.items():
         print(key, len(feat))
     

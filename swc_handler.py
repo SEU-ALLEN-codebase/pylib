@@ -232,17 +232,24 @@ def shift_swc(swc_file, sx, sy, sz):
         new_tree.append(node)
     return new_tree
 
-def scale_swc(swc_file, scale=0.5):
+def scale_swc(swc_file, scale):
     if type(swc_file) == list:
         tree = swc_file
     else:
         tree = parse_swc(swc_file)
+    if isinstance(scale, int):
+        scale_x, scale_y, scale_z = scale, scale, scale
+    elif isinstance(scale, tuple) or isinstance(scale, list):
+        scale_x, scale_y, scale_z = scale
+    else:
+        raise NotImplementedError("Type of parameter scale {type(scale)} is not supported!")
+
     new_tree = []
     for node in tree:
         idx, type_, x, y, z, r, p = node
-        x *= scale
-        y *= scale
-        z *= scale
+        x *= scale_x
+        y *= scale_y
+        z *= scale_z
         node = (idx, type_, x, y, z, r, p)
         new_tree.append(node)
     return new_tree
