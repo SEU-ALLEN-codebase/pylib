@@ -47,7 +47,6 @@ def parse_swc(swc_file):
             line = line.strip()
             if not line: continue
             if line[0] == '#': continue
-
             idx, type_, x, y, z, r, p = line.split()
             idx = int(idx)
             type_ = int(type_)
@@ -72,15 +71,17 @@ def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
         if leaf[p_idx_in_leaf] == p_soma:
             #print('Soma: ', leaf)
             return leaf[0]
-    raise ValueError("Could not find the soma node!")
+    #raise ValueError("Could not find the soma node!")
+    return -99
 
 def find_soma_index(tree, p_soma=-1):
     for i, leaf in enumerate(tree):
         if leaf[-1] == p_soma:
             return i
-    raise ValueError("find_soma_index: Could not find the somma node!")
+    #raise ValueError("find_soma_index: Could not find the somma node!")
+    return -99
 
-def get_child_dict(tree, p_idx_in_leaf=-1):
+def get_child_dict(tree, p_idx_in_leaf=6):
     child_dict = {}
     for leaf in tree:
         p_idx = leaf[p_idx_in_leaf]

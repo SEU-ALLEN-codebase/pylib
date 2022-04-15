@@ -29,3 +29,11 @@ def save_pickle(obj, outfile):
     with open(outfile, 'wb') as fp:
         pickle.dump(obj, outfile)
 
+def save_markers(outfile, markers, radius=0, shape=0, name='', comment='', c=(0,0,255)):
+    with open(outfile, 'w') as fp:
+        fp.write('##x,y,z,radius,shape,name,comment, color_r,color_g,color_b\n')
+        for marker in markers:
+            x, y, z = marker
+            fp.write(f'{x:3f}, {y:.3f}, {z:.3f}, {radius},{shape}, {name}, {comment},0,0,255\n')
+            
+

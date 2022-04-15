@@ -32,8 +32,9 @@ class AbstractTree(object):
         self.child_dict = get_child_dict(tree)
         self.index_dict = get_index_dict(tree)
         self.pos_dict = self.get_pos_dict()
-        self.idx_soma = find_soma_node(tree, p_soma=self.p_soma)    # node index
-        self.index_soma = find_soma_index(tree, p_soma)
+        if len(tree) > 0:
+            self.idx_soma = find_soma_node(tree, p_soma=self.p_soma)    # node index
+            self.index_soma = find_soma_index(tree, p_soma)
 
 
     def get_nodes_by_types(self, neurite_type):
@@ -218,7 +219,7 @@ class Morphology(AbstractTree):
         new_tree.append(self.pos_dict[self.idx_soma])
 
         print(f'{len(new_tree)} #nodes left after merging of the original {len(self.tree)} # nodes')
-        print(f'{len(self.tips)}, {len(self.bifurcation)}, {len(self.multifurcation)}')
+        #print(f'{len(self.tips)}, {len(self.bifurcation)}, {len(self.multifurcation)}')
         return new_tree, seg_dict
 
 

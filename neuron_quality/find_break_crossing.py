@@ -70,13 +70,14 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
 
 
 class BreakFinder(object):
-    def __init__(self, morph, soma_radius=10, dist_thresh=4.0, line_length=5.0, angle_thresh=90.):
+    def __init__(self, morph, soma_radius=30, dist_thresh=4.0, line_length=5.0, angle_thresh=90., spacing=np.array([1.,1.,4.])):
         self.morph = morph
 
         self.soma_radius = soma_radius
         self.dist_thresh = dist_thresh
         self.line_length = line_length
         self.angle_thresh = angle_thresh
+        self.spacing = spacing
 
     def find_break_pairs(self):
         ntips = len(self.morph.tips)
@@ -86,7 +87,7 @@ class BreakFinder(object):
         sc = np.array(self.morph.pos_dict[self.morph.idx_soma][2:5])
         for tip in self.morph.tips:
             ci = np.array(self.morph.pos_dict[tip][2:5])
-            dist = np.linalg.norm(sc - ci)
+            dist = np.linalg.norm((sc - ci) * self.spacing)
             if dist < self.soma_radius:
                 continue
             tip_list.append(tip)
@@ -107,8 +108,8 @@ class BreakFinder(object):
                 pid2 = self.morph.pos_dict[tip2][6]
                 pt2 = find_point_by_distance(c2, pid2, True, self.morph, self.line_length, False)
                 # angle 
-                v1 = (pt1 - c1).reshape((1,-1))
-                v2 = (pt2 - c2).reshape((1,-1))
+                v1 = pt1 - c1
+                v2 = pt2 - c2
                 ang = calc_included_angles_from_vectors(v1, v2)[0]
                 if ang > self.angle_thresh:
                     ret[(tip1, tip2)] = (ang, dist)
@@ -117,5 +118,70 @@ class BreakFinder(object):
         return ret
         
         
+class CrossingFinder(object):
+    def __init__(self, morph, soma_radius=30., dist_thresh=3., spacing=np.array([1.,1.,4.])):
+        self.morph = morph
+        self.soma_radius = soma_radius
+        self.dist_thresh = dist_thresh
+        self.spacing = spacing
+
+    def find_crossing_pairs(self):
+        pairs = []
+        points = []
+        morph = self.morph
+
+        cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
+        pset = set([])
+        visited = set([])
+        for tid in morph.tips:
+            idx = tid 
+            pre_tip_id = None
+
+            while idx != morph.idx_soma:
+                if idx == -1: 
+                    break
+                if idx in morph.child_dict:
+                    n_child = len(morph.child_dict[idx])
+    
+                    if n_child == 2:
+                        cur_tip_id = idx 
+                        if cur_tip_id in visited: 
+                            idx = morph.pos_dict[idx][6]
+                            break
+
+                        if pre_tip_id is not None:
+                            c0 = np.array(morph.pos_dict[cur_tip_id][2:5])
+                            c1 = np.array(morph.pos_dict[pre_tip_id][2:5])
+                            if np.linalg.norm((c0 - cs) * self.spacing) < self.soma_radius:
+                                break
+                            dist = np.linalg.norm(c0 - c1) 
+                            if (dist < self.dist_thresh) and ((pre_tip_id, cur_tip_id) not in pset):
+                                #print(f'{pre_tip_id}, {cur_tip_id}')
+                                pairs.append((pre_tip_id, cur_tip_id, dist))
+                                pset.add((pre_tip_id, cur_tip_id))
+                        #update tip
+                        pre_tip_id = cur_tip_id
+                        visited.add(pre_tip_id)
+                    elif n_child > 2:
+                        c = np.array(morph.pos_dict[idx][2:5])
+                        if np.linalg.norm((c - cs) * self.spacing) < self.soma_radius:
+                            break
+                        if idx in visited:
+                            idx = morph.pos_dict[idx][6]
+                            break
+                        else:
+                            points.append(idx)
+                            pre_tip_id = idx
+                            visited.add(idx)
+                        
+    
+                idx = morph.pos_dict[idx][6]
+
+        #print(f'Dist: {dists.mean():.2f}, {dists.std():.2f}, {dists.max():.2f}, {dists.min():.2f}')
+        #for pair in pairs:
+        #    print(f'idx1 / idx2 and dist: {pair[0]} / {pair[1]} / {pair[2]}')
+        print(f'Number of crossing and crossing-like: {len(points)} / {len(pairs)}')
+
+        return points, pairs
 
 
