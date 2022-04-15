@@ -143,12 +143,17 @@ class AbstractTree(object):
         # in parallel mode
         coords = np.array([leaf[2:5] for leaf in self.tree])
         p_coords = np.array([self.pos_dict[leaf[-1]][2:5] if leaf[0] != self.idx_soma else self.pos_dict[self.idx_soma][2:5] for leaf in self.tree])
+        indices = [leaf[0] for leaf in self.tree]
         vectors = coords - p_coords
         lengths = np.linalg.norm(vectors, axis=1)
-        return lengths
+
+        lengths_dict = {}
+        for idx, length in zip(indices, lengths):
+            lengths_dict[idx] = length
+        return lengths, lengths_dict
 
     def calc_total_length(self):
-        seg_lengths = self.calc_seg_lengths()
+        seg_lengths, lengths_dict = self.calc_seg_lengths()
         total_length = seg_lengths.sum()
         return total_length
 
