@@ -10,6 +10,7 @@
 #
 #================================================================
 import numpy as np
+from scipy.spatial import distance_matrix
 
 from swc_handler import parse_swc
 from math_utils import calc_included_angles_from_coords, calc_included_angles_from_vectors
@@ -70,7 +71,7 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
 
 
 class BreakFinder(object):
-    def __init__(self, morph, soma_radius=30, dist_thresh=4.0, line_length=5.0, angle_thresh=90., spacing=np.array([1.,1.,4.])):
+    def __init__(self, morph, soma_radius=30, dist_thresh=4.0, line_length=5.0, angle_thresh=90., spacing=np.array([1.,1.,1.])):
         self.morph = morph
 
         self.soma_radius = soma_radius
@@ -115,6 +116,33 @@ class BreakFinder(object):
                     ret[(tip1, tip2)] = (ang, dist)
                 #print(tip1, tip2, ang, dist)
 
+        return ret
+
+    def find_break_pairs_by_distances(self):
+        """
+        find potential tip pair based on pair-wise distance only, so it can be accelerated
+        with more compact vectorization
+        """
+        sc = np.array(self.morph.pos_dict[self.morph.idx_soma][2:5])
+        tip_coords = np.array([self.morph.pos_dict[tip][2:5] for tip in self.morph.tips])
+        tip_indices = np.array([self.morph.pos_dict[tip][0] for tip in self.morph.tips])
+        ts_vec = (tip_coords - sc) * self.spacing
+        ts_dists = np.linalg.norm(ts_vec, axis=1)
+
+        # filter out tips near soma
+        tip_out_mask = ts_dists > self.soma_radius
+        tip_out_indices = tip_indices[tip_out_mask]
+        tip_out_coords = tip_coords[tip_out_mask]
+
+        # pairwise distances
+        pdists = distance_matrix(tip_out_coords, tip_out_coords)
+        ids1, ids2 = np.nonzero(pdists > self.dist_thresh)
+        ret = {}
+        for i, j in zip(ids1, ids2):
+            try:
+                ret[tip_out_indices[i]].append(tip_out_indices[j])
+            except KeyError:
+                ret[tip_out_indices[i]] = [tip_out_indices[j]]
         return ret
         
         

@@ -17,7 +17,7 @@ import numpy as np
 from swc_handler import parse_swc, write_swc, scale_swc
 from file_io import load_image
 from math_utils import calc_included_angles_from_coords, calc_included_angles_from_vectors
-from morphology import Morphology, Topology
+from morph_topo.morphology import Morphology, Topology
 from neuron_quality.find_break_crossing import find_point_by_distance, BreakFinder, CrossingFinder
 
 
@@ -132,7 +132,7 @@ class TopoFeatures(object):
             rcoord = coord - soma_pos
             rcoords[seg_id] = rcoord
         return rcoords
-     
+
     def calc_all_features(self):
         _, morph_lengths_dict = self.morph.calc_seg_lengths()
         _, topo_lengths_dict = self.topo.calc_seg_lengths()
@@ -143,14 +143,14 @@ class TopoFeatures(object):
         nchilds_dict = self.get_num_childs()
         
         topo_features = {}
-        topo_features['pdists_soma'] = pdists_soma
-        topo_features['sdists_soma'] = sdists_soma
-        topo_features['pdists_seg'] = pdists_seg
-        topo_features['sdists_seg'] = sdists_seg    # idx: (max, min, mean, median)
+        topo_features['pdists_soma'] = pdists_soma  # idx: dist
+        topo_features['sdists_soma'] = sdists_soma  # idx: dist
+        topo_features['pdists_seg'] = pdists_seg    # idx: dist
+        topo_features['sdists_seg'] = sdists_seg    # idx: dist
         topo_features['local_angs'] = local_angs    # idx: ang
         topo_features['global_angs'] = global_angs  # idx: ang
         topo_features['nchilds_dict'] = nchilds_dict    # idx: (#par, #cur)
-        topo_features['order_dict'] = self.topo.order_dict
+        topo_features['order_dict'] = self.topo.order_dict  # idx: order(int)
 
         return topo_features
      
@@ -242,8 +242,8 @@ class TopoImFeatures(object):
     def calc_all_features(self):
         # image features
         tif = {}
-        tif['intensity'] = self.seg_intensities()
-        tif['radii'] = self.seg_radii()
+        tif['intensity'] = self.seg_intensities()   # idx: (max, min, mean, median)
+        tif['radii'] = self.seg_radii()             # idx: (max, min, mean, median)
 
         return tif
 
