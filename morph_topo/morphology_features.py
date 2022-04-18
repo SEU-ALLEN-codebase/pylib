@@ -182,10 +182,11 @@ class TopoImFeatures(object):
 
     def get_node_intensities(self):
         int_dict = {}
+        yshape = self.img.shape[1]
         for node in self.morph.tree:
             idx, type_, x, y, z = node[:5]
             x, y, z = map(lambda t: int(round(t)), [x, y, z])
-            int_dict[idx] = self.img[z,y,x]
+            int_dict[idx] = self.img[z,yshape-y,x]  # the y-axis is reverted
         return int_dict
 
     def seg_intensities(self):
@@ -264,4 +265,5 @@ if __name__ == '__main__':
 
     for key, feat in feats.items():
         print(key, len(feat))
+    print(feats['intensity'], feats['radii'])
     

@@ -7,7 +7,9 @@
 *   Description : 
 *
 ================================================================*"""
+import numpy as np
 from copy import deepcopy
+from skimage.draw import line_nd
 
 NEURITE_TYPES = {
     'soma': [1],
@@ -253,5 +255,46 @@ def scale_swc(swc_file, scale):
         node = (idx, type_, x, y, z, r, p)
         new_tree.append(node)
     return new_tree
+
+def tree_to_voxels(tree, crop_box):
+    # initialize position dict
+    pos_dict = {}
+    new_tree = []
+    for i, leaf in enumerate(tree):
+        idx, type_, x, y, z, r, p = leaf
+        leaf_new = (*leaf, is_in_box(x,y,z,crop_box))
+        pos_dict[leaf[0]] = leaf_new
+        new_tree.append(leaf_new)
+    tree = new_tree
+
+    xl, yl, zl = [], [], []
+    for _, leaf in pos_dict.items():
+        idx, type_, x, y, z, r, p, ib = leaf
+        if p == -1: continue # soma
+
+        if p not in pos_dict:
+            continue
+
+        parent_leaf = pos_dict[p]
+        if (not ib) and (not parent_leaf[ib]):
+            print('All points are out of box! do trim_swc before!')
+            raise ValueError
+
+        # draw line connecting each pair
+        cur_pos = leaf[2:5]
+        par_pos = parent_leaf[2:5]
+        lin = line_nd(cur_pos[::-1], par_pos[::-1], endpoint=True)
+        xl.extend(list(lin[2]))
+        yl.extend(list(lin[1]))
+        zl.extend(list(lin[0]))
+
+    voxels = []
+    for (xi,yi,zi) in zip(xl,yl,zl):
+        if is_in_box(xi,yi,zi,crop_box):
+            voxels.append((xi,yi,zi))
+    # remove duplicate points
+    voxels = np.array(list(set(voxels)), dtype=np.float32)
+    return voxels
+        
 
 
