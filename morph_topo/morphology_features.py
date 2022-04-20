@@ -151,8 +151,10 @@ class TopoFeatures(object):
      
 
 class TopoImFeatures(object):
-    def __init__(self, swcfile, imgfile, radii_cache_dir='./radii_cache'):
+    def __init__(self, swcfile, imgfile, radii_cache_dir='./radii_cache', vaa3d_path='/home/lyf/Softwares/installation/Vaa3D/v3d_external/bin/vaa3d'):
         self.radii_cache_dir = radii_cache_dir
+        self.vaa3d_path = vaa3d_path
+        self.imgfile = imgfile
         
         if isinstance(swcfile, str):
             tree = parse_swc(swcfile)
@@ -181,7 +183,7 @@ class TopoImFeatures(object):
         for node in self.morph.tree:
             idx, type_, x, y, z = node[:5]
             x, y, z = map(lambda t: int(round(t)), [x, y, z])
-            int_dict[idx] = self.img[z,yshape-y,x]  # the y-axis is reverted
+            int_dict[idx] = self.img[z,yshape-y-1,x]  # the y-axis is reverted
         return int_dict
 
     def seg_intensities(self):
