@@ -239,12 +239,12 @@ def scale_swc(swc_file, scale):
         tree = swc_file
     else:
         tree = parse_swc(swc_file)
-    if isinstance(scale, int):
+    if isinstance(scale, (int, float)):
         scale_x, scale_y, scale_z = scale, scale, scale
     elif isinstance(scale, tuple) or isinstance(scale, list):
         scale_x, scale_y, scale_z = scale
     else:
-        raise NotImplementedError("Type of parameter scale {type(scale)} is not supported!")
+        raise NotImplementedError(f"Type of parameter scale {type(scale)} is not supported!")
 
     new_tree = []
     for node in tree:
@@ -257,6 +257,7 @@ def scale_swc(swc_file, scale):
     return new_tree
 
 def tree_to_voxels(tree, crop_box):
+    # crop_box in (z,y,x) order
     # initialize position dict
     pos_dict = {}
     new_tree = []

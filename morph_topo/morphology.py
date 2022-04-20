@@ -78,7 +78,6 @@ class AbstractTree(object):
         coords2 = np.array(coords2)
         shift = coords2 - coords1
         dists = np.linalg.norm(shift, axis=1)
-        print(dists.shape)
         stats = dists.mean(), dists.std(), dists.max(), dists.min()
         return stats
 
@@ -139,7 +138,7 @@ class AbstractTree(object):
         return paths
         
 
-    def calc_seg_lengths(self):
+    def calc_frag_lengths(self):
         # in parallel mode
         coords = np.array([leaf[2:5] for leaf in self.tree])
         p_coords = np.array([self.pos_dict[leaf[-1]][2:5] if leaf[0] != self.idx_soma else self.pos_dict[self.idx_soma][2:5] for leaf in self.tree])
@@ -153,7 +152,7 @@ class AbstractTree(object):
         return lengths, lengths_dict
 
     def calc_total_length(self):
-        seg_lengths, lengths_dict = self.calc_seg_lengths()
+        seg_lengths, lengths_dict = self.calc_frag_lengths()
         total_length = seg_lengths.sum()
         return total_length
 
@@ -188,6 +187,15 @@ class Morphology(AbstractTree):
             plen = seg_lengths[pindex].sum()
             plen_dict[idx] = plen
         return plen_dict
+
+    def calc_seg_path_lengths(self, seg_dict, frag_lengths_dict):
+        path_dists = {}
+        path_dists[self.idx_soma] = 0 
+        for seg_id, seg_nodes in seg_dict.items():
+            path_dists[seg_id] = frag_lengths_dict[seg_id]
+            for n_id in seg_nodes:
+                path_dists[seg_id] += frag_lengths_dict[n_id]
+        return path_dists
 
     def convert_to_topology_tree(self):
         """

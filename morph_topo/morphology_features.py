@@ -66,12 +66,7 @@ class TopoFeatures(object):
         return path_dists, spatial_dists
         
     def dists_to_parent_seg(self, morph_lengths_dict, topo_lengths_dict):
-        path_dists = {}
-        path_dists[self.morph.idx_soma] = 0
-        for seg_id, seg_nodes in self.seg_dict.items():
-            path_dists[seg_id] = morph_lengths_dict[seg_id]
-            for n_id in seg_nodes:
-                path_dists[seg_id] += morph_lengths_dict[n_id]
+        path_dists = self.morph.calc_seg_path_lengths(self.seg_dict, morph_lengths_dict)
 
         return path_dists, topo_lengths_dict
   
@@ -134,8 +129,8 @@ class TopoFeatures(object):
         return rcoords
 
     def calc_all_features(self):
-        _, morph_lengths_dict = self.morph.calc_seg_lengths()
-        _, topo_lengths_dict = self.topo.calc_seg_lengths()
+        _, morph_lengths_dict = self.morph.calc_frag_lengths()
+        _, topo_lengths_dict = self.topo.calc_frag_lengths()
         
         pdists_soma, sdists_soma = self.dists_to_soma(morph_lengths_dict)
         pdists_seg, sdists_seg = self.dists_to_parent_seg(morph_lengths_dict, topo_lengths_dict)
