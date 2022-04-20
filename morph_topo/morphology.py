@@ -24,17 +24,23 @@ from swc_handler import get_child_dict, get_index_dict, find_soma_node, find_som
 
 sys.setrecursionlimit(100000)
 
+class TreeInitializeError(RuntimeError):
+    def __init__(self, args):
+        self.args = args
+
 class AbstractTree(object):
     def __init__(self, tree, p_soma=-1):
         self.p_soma = p_soma
 
         self.tree = tree    # swc tree file, type as list
+        if len(self.tree) == 0:
+            raise TreeInitializeError("The tree contains no nodes!")
+
         self.child_dict = get_child_dict(tree)
         self.index_dict = get_index_dict(tree)
         self.pos_dict = self.get_pos_dict()
-        if len(tree) > 0:
-            self.idx_soma = find_soma_node(tree, p_soma=self.p_soma)    # node index
-            self.index_soma = find_soma_index(tree, p_soma)
+        self.idx_soma = find_soma_node(tree, p_soma=self.p_soma)    # node index
+        self.index_soma = find_soma_index(tree, p_soma)
 
 
     def get_nodes_by_types(self, neurite_type):
@@ -92,6 +98,14 @@ class AbstractTree(object):
         return dists
 
     def get_critical_points(self):
+        if len(self.tree) == 0:
+            self.stems = set([])
+            self.tips = set([])
+            self.unifurcation = set([])
+            self.bifurcation = set([])
+            self.multifurcation = set([])
+            return 
+
         # stems
         self.stems = set(self.child_dict[self.idx_soma])
 

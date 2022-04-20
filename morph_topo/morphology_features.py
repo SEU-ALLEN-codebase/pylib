@@ -129,6 +129,9 @@ class TopoFeatures(object):
         return rcoords
 
     def calc_all_features(self):
+        if len(self.morph.tree) == 0:
+            return False
+
         _, morph_lengths_dict = self.morph.calc_frag_lengths()
         _, topo_lengths_dict = self.topo.calc_frag_lengths()
         
@@ -238,6 +241,9 @@ class TopoImFeatures(object):
         return rad_dict
         
     def calc_all_features(self):
+        if len(self.morph.tree) == 0:
+            return False
+        
         # image features
         tif = {}
         tif['intensity'] = self.seg_intensities()   # idx: (max, min, mean, median)
