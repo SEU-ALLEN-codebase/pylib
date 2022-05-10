@@ -27,7 +27,7 @@ if __name__ == '__main__':
             a = sitk.GetArrayFromImage(a)
             a = -a
             a[a < 0] = 0
-            a = (a*255/a.max()).astype('uint8')
+            # a = (a*255/a.max()).astype('uint8')
             # sitk.WriteImage(sitk.GetImageFromArray(a), dir + "test.tiff")
             xy = a ** 3
             pos = np.array(img.shape[1:]) / 2
