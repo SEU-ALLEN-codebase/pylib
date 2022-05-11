@@ -12,12 +12,12 @@
 import SimpleITK as sitk
 import pickle
 import os
-import sys
 import struct
 import numpy as np
+import sys
 
 
-def load_v3draw(path):
+def load_v3draw(path: str):
     """
     by Zuohan Zhao
     from basic_c_fun/stackutils.cpp
@@ -39,11 +39,11 @@ def load_v3draw(path):
             raise Exception('endian be big/little')
         datatype = struct.unpack(endian+'h', f.read(2))[0]
         if datatype == 1:
-            dt = np.uint8
+            dt = 'u1'
         elif datatype == 2:
-            dt = np.uint16
+            dt = 'u2'
         elif datatype == 4:
-            dt = np.float32
+            dt = 'f4'
         else:
             raise Exception('datatype be 1/2/4')
         sz = struct.unpack(endian+'iiii', f.read(4*4))
@@ -52,8 +52,43 @@ def load_v3draw(path):
             f.seek(-4*2, 1)
             tot = sz[0] * sz[1] * sz[2] * sz[3]
             assert(tot * datatype + 4 * 4 + 2 + 1 + len(formatkey) == filesize)
-        img = np.frombuffer(f.read(tot), dt)
+        img = np.frombuffer(f.read(tot), endian+dt)
         return img.reshape(sz[-1:-5:-1])
+
+
+def save_v3draw(img: np.ndarray, path: str):
+    """
+    by Zuohan Zhao
+    from basic_c_fun/stackutils.cpp
+    2022/5/8
+    """
+    with open(path, 'wb') as f:
+        formatkey = "raw_image_stack_by_hpeng"
+        f.write(formatkey.encode())
+        if img.dtype.byteorder == '>':
+            endian = 'B'
+        elif img.dtype.byteorder == '<':
+            endian = 'L'
+        elif img.dtype == '|':
+            endian = 'B'
+        else:
+            if sys.byteorder == 'little':
+                endian = 'L'
+            else:
+                endian = 'B'
+        f.write(endian.encode())
+        if img.dtype == np.uint8:
+            datatype = 1
+        elif img.dtype == np.uint16:
+            datatype = 2
+        else:
+            datatype = 4
+        f.write(struct.pack(endian+'h', datatype))
+        sz = list(img.shape)
+        sz.extend([0] * (4 - len(sz)))
+        sz.reverse()
+        f.write(struct.pack(endian+'iiii', *sz))
+        f.write(img.tobytes())
 
 
 def load_image(imgfile):
