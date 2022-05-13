@@ -49,7 +49,7 @@ def parse_swc(swc_file):
             line = line.strip()
             if not line: continue
             if line[0] == '#': continue
-            idx, type_, x, y, z, r, p = line.split()
+            idx, type_, x, y, z, r, p = line.split()[:7]
             idx = int(idx)
             type_ = int(type_)
             x = float(x)
