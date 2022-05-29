@@ -5,6 +5,9 @@ import SimpleITK as sitk
 
 
 def main(dir, r, sigma, sigma2):
+    """
+    r: z, y, x
+    """
     for b in os.listdir(dir):
         for i in os.listdir(os.path.join(dir, b)):
             if not i.endswith('v3draw'):
