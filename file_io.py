@@ -17,44 +17,13 @@ import numpy as np
 import sys
 
 
-    MDATA_BIN_FILE_NAME  = "mdata.bin"       # name of binary metadata file
-    MDATA_BIN_FILE_VERSION = 2               # version of binary metadata file
-    MC_MDATA_BIN_FILE_NAME = "cmap.bin"      # name of binary metadata file for multichannel volumes
-    FORMAT_MDATA_FILE_NAME = ".iim.format"   # name of format metadata file
-    CHANNEL_PREFIX = "CH_"                   # prefix identifying a folder containing data of a certain channel
-    TIME_FRAME_PREFIX = "T_"                 # prefix identifying a folder containing data of a certain time frame
-    DEF_IMG_DEPTH = 8                        # default image depth
-    NUL_IMG_DEPTH = 0                        # invalid image depth
-    NATIVE_RTYPE  = 0                        # loadVolume returns the same bytes per channel as in the input image
-    DEF_IMG_FORMAT = "tif"                   # default image format
-    STATIC_STRINGS_SIZE = 1024               # size of static C-strings
-    RAW_FORMAT            = "Vaa3D raw"                  # unique ID for the RawVolume class
-    SIMPLE_RAW_FORMAT     = "Vaa3D raw (series, 2D)"     # unique ID for the SimpleVolumeRaw class
-    STACKED_RAW_FORMAT    = "Vaa3D raw (tiled, 2D)"      # unique ID for the StackedVolume class
-    TILED_FORMAT          = "Vaa3D raw (tiled, 3D)"      # unique ID for the TiledVolume class
-    TILED_MC_FORMAT       = "Vaa3D raw (tiled, 4D)"      # unique ID for the TiledMCVolume class
-    TIF3D_FORMAT          = "TIFF (3D)"                  # unique ID for multipage TIFF format (nontiled)
-    SIMPLE_FORMAT         = "TIFF (series, 2D)"          # unique ID for the SimpleVolume class
-    STACKED_FORMAT        = "TIFF (tiled, 2D)"           # unique ID for the StackedVolume class
-    TILED_TIF3D_FORMAT    = "TIFF (tiled, 3D)"           # unique ID for multipage TIFF format (tiled)
-    TILED_MC_TIF3D_FORMAT = "TIFF (tiled, 4D)"           # unique ID for multipage TIFF format (nontiled, 4D)
-    UNST_TIF3D_FORMAT     = "TIFF (unstitched, 3D)"      # unique ID for multipage TIFF format (nontiled, 4D)
-    BDV_HDF5_FORMAT       = "HDF5 (BigDataViewer)"       # unique ID for BDV HDF5
-    IMS_HDF5_FORMAT       = "HDF5 (Imaris IMS)"          # unique ID for IMS HDF5
-    MAPPED_FORMAT         = "Mapped Volume"              # unique ID for mapped volumes
-    MULTISLICE_FORMAT     = "MultiSlice Volume"          # unique ID for multi-slice volumes
-    MULTICYCLE_FORMAT     = "MultiCycle Volume"			# unique ID for multi-cycle volumes
-    VOLATILE_FORMAT       = "Volatile Volume"            # unique ID for volatile volumes
-    TIME_SERIES           = "Time series"                # unique ID for the TimeSeries class
-
-
 def load_v3draw(path: str):
     """
     by Zuohan Zhao
     from basic_c_fun/stackutils.cpp
     2022/5/8
     """
-    assert(os.path.exists(path))
+    assert os.path.exists(path)
     formatkey = "raw_image_stack_by_hpeng"
     with open(path, "rb") as f:
         filesize = os.path.getsize(path)
@@ -154,29 +123,3 @@ def save_markers(outfile, markers, radius=0, shape=0, name='', comment='', c=(0,
             x, y, z = marker
             fp.write(f'{x:3f}, {y:.3f}, {z:.3f}, {radius},{shape}, {name}, {comment},0,0,255\n')
             
-
-def getSubVolumeTerafly(dir: str, coord_from, coord_to):
-    # open dir
-    # try getting format
-    with open(os.path.join(dir, ".iim.format")) as f:
-        format = f.readline()
-        if format == "Vaa3D raw (tiled, 4D)":
-            pass
-        elif format == "TIFF (tiled, 2D)":
-            pass
-        elif format == "Vaa3D raw (tiled, 3D)":
-            pass
-        elif format == "":
-            pass
-        elif format == "":
-            pass
-        elif format == "":
-            pass
-        else:
-            print()
-    # or try each format
-    pass
-
-
-def getDimTerafly(dir: str):
-    pass
