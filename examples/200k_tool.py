@@ -17,6 +17,16 @@ import math
 from neuron_quality.find_break_crossing import find_point_by_distance
 
 
+class HidePrint:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
+
+
 def anchor_angles(center: np.ndarray, p: np.ndarray, ch, spacing=(1, 1, 4)):
     """
     modified from Jingzhou's code
@@ -27,8 +37,9 @@ def anchor_angles(center: np.ndarray, p: np.ndarray, ch, spacing=(1, 1, 4)):
     """
     vec_p = (p - center) * spacing
     vec_ch = [(coord - center) * spacing for coord in ch]
-    cos_ch = [np.sum(vec_p * vec) / (np.linalg.norm(vec_p) * np.linalg.norm(vec)) for vec in vec_ch]
-    return [*map(lambda x: math.acos(x) * 180 / math.pi, cos_ch)]
+    cos_ch = [vec_p.dot(vec) / (np.linalg.norm(vec_p) * np.linalg.norm(vec)) for vec in vec_ch]
+    out = [*map(lambda x: math.acos(max(min(x, 1), -1)) * 180 / math.pi, cos_ch)]
+    return out
 
 
 def get_anchors(morph: Morphology, ind: list, dist: float):
@@ -91,18 +102,21 @@ def angle_prune(args):
     tree, angle_thr, anchor_dist, soma_radius, dist_thr, spacing = args
     morph = Morphology(tree)
     cf = CrossingFinder(morph, soma_radius, dist_thr)
-    tri, db = cf.find_crossing_pairs()
+    with HidePrint():
+        tri, db = cf.find_crossing_pairs()
     rm_ind = set()
     for i in tri:
         # angle
-        center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [i], anchor_dist)
+        with HidePrint():
+            center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [i], anchor_dist)
         angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
         angles = np.array(angles)
         to = np.argmin(abs(angles - 180))
         rm_ind |= (set(protrude) - {protrude[to]})
     for down, up, dist in db:
         # angle
-        center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [up, down], anchor_dist)
+        with HidePrint():
+            center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [up, down], anchor_dist)
         angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
         angles = np.array(angles)
         to = np.argmin(abs(angles - 180))
@@ -117,7 +131,8 @@ def angle_prune(args):
     awry_angle = set()
     for n, l in morph.pos_dict.items():
         if morph.child_dict.get(n) is not None and len(morph.child_dict[n]) > 1 and morph.pos_dict[n][-1] != -1:
-            center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [n], anchor_dist)
+            with HidePrint():
+                center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [n], anchor_dist)
             angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
             angles = np.array(angles)
             protrude = np.array(protrude)
@@ -144,7 +159,9 @@ class CLI200k:
             if type(files) is str:
                 if dir is not None:
                     files = os.path.join(dir, files)
-                self.files = glob.glob(files)
+                self.files = glob.glob(files, recursive=True)
+                if len(self.files) == 0:
+                    raise "no swc file found"
             elif type(files) is list:
                 if dir is not None:
                     files = [os.path.join(dir, f) for f in files]

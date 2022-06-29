@@ -49,7 +49,7 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
                 if stop_by_branch and len(morph.child_dict[anchor_idx]) > 1:
                     break
             else:
-                if (anchor_idx not in morph.child_dict) or (len(morph.child_dict[anchor_idx]) > 1):
+                if (anchor_idx not in morph.child_dict) or (stop_by_branch and (len(morph.child_dict[anchor_idx]) > 1)):
                     break
                 else:
                     anchor_idx = morph.child_dict[anchor_idx][0]
