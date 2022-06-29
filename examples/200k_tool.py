@@ -179,7 +179,7 @@ class CLI200k:
         if dir is not None:
             self.root = dir
         else:
-            self.root = os.path.commonpath(self.files)
+            self.root = os.path.commonpath([os.path.dirname(f) for f in self.files])
         self.jobs = jobs
         self.chunk = chunk_size
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
