@@ -53,7 +53,7 @@ def get_anchors(morph: Morphology, ind: list, dist: float):
     center = np.mean(coords, axis=0)
     protrude = set()
     for i in ind:
-        if morph.child_dict.get(i) is not None:
+        if i in morph.child_dict:
             protrude = protrude.union(morph.child_dict[i])
     com_line = None
     for i in ind:
@@ -85,7 +85,7 @@ def prune(morph: Morphology, ind_set: set):
         if tree[ind] is None:
             continue
         tree[ind] = None
-        if morph.child_dict.get(i) is not None:
+        if i in morph.child_dict:
             q.extend(morph.child_dict[i])
         while len(q) > 0:
             head = q.pop(0)
@@ -93,7 +93,7 @@ def prune(morph: Morphology, ind_set: set):
             if tree[ind] is None:
                 continue
             tree[ind] = None
-            if morph.child_dict.get(head) is not None:
+            if head in morph.child_dict:
                 q.extend(morph.child_dict[head])
     return [t for t in tree if t is not None]
 
@@ -130,7 +130,7 @@ def angle_prune(args):
             jj = morph.pos_dict[j][-1]
     awry_angle = set()
     for n, l in morph.pos_dict.items():
-        if morph.child_dict.get(n) is not None and len(morph.child_dict[n]) > 1 and morph.pos_dict[n][-1] != -1:
+        if n in morph.child_dict and len(morph.child_dict[n]) > 1 and morph.pos_dict[n][-1] != -1:
             with HidePrint():
                 center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [n], anchor_dist)
             angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)

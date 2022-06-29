@@ -149,9 +149,11 @@ def spl_gray(morph, ind, parent, spl_dist):
 
 
 if __name__ == '__main__':
-    test_dir = 'D:/PengLab/200k_testdata'
-    swc_dir = os.path.join(test_dir, 'Img_X_5922.13_Y_7785.15_Z_1800.97.swc')
-    img_dir = os.path.join(test_dir, 'Img_X_5922.13_Y_7785.15_Z_1800.97.v3draw')
+    # test_dir = 'D:/PengLab/200k_testdata'
+    test_dir = r'C:\Users\Zuohan Zhao\Desktop\test'
+    # swc_dir = os.path.join(test_dir, 'Img_X_5922.13_Y_7785.15_Z_1800.97.swc')
+    swc_dir = os.path.join(test_dir, 'Img_X_6840.64_Y_11892.9_Z_3605.37.swc')
+    # img_dir = os.path.join(test_dir, 'Img_X_5922.13_Y_7785.15_Z_1800.97.v3draw')
     save_path = os.path.join(test_dir, 'out.swc')
     marker_path = os.path.join(test_dir, 'out.marker')
     tree = swc_handler.parse_swc(swc_dir)
@@ -165,7 +167,7 @@ if __name__ == '__main__':
     morph = Morphology(tree)
 
     # prune crossing first
-    cf = CrossingFinder(morph, 15, 1.5)
+    cf = CrossingFinder(morph, 15, 2)
     tri, db = cf.find_crossing_pairs()
     rm_ind = set()
     spline_dist = 15
