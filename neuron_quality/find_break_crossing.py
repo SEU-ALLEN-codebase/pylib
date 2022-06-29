@@ -15,7 +15,7 @@ from scipy.spatial import distance_matrix
 from swc_handler import parse_swc
 from math_utils import calc_included_angles_from_coords, calc_included_angles_from_vectors
 
-def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7):
+def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7, stop_by_branch=True):
     """ 
     Find the point of exact `dist` to the start pt on tree structure. args are:
     - pt: the start point, [coordinate]
@@ -46,7 +46,7 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
 
             if is_parent:
                 anchor_idx = morph.pos_dict[anchor_idx][6]
-                if len(morph.child_dict[anchor_idx]) > 1:
+                if stop_by_branch and len(morph.child_dict[anchor_idx]) > 1:
                     break
             else:
                 if (anchor_idx not in morph.child_dict) or (len(morph.child_dict[anchor_idx]) > 1):
