@@ -98,10 +98,11 @@ def prune(morph: Morphology, ind_set: set):
     return [t for t in tree if t is not None]
 
 
-def angle_prune(args):
-    tree, angle_thr, anchor_dist, soma_radius, dist_thr, spacing = args
+def crossing_prune(args):
+    tree, img_path, anchor_dist, soma_radius, dist_thr, spacing, sampling = args
     morph = Morphology(tree)
     cf = CrossingFinder(morph, soma_radius, dist_thr)
+    img = load_image(img_path)
     with HidePrint():
         tri, db = cf.find_crossing_pairs()
     rm_ind = set()
@@ -128,18 +129,25 @@ def angle_prune(args):
                     rm_ind.add(k)
             j = jj
             jj = morph.pos_dict[j][-1]
-    awry_angle = set()
+    return prune(morph, rm_ind)
+
+
+def branch_prune(args):
+    tree, angle_thr, anchor_dist, soma_radius, spacing = args
+    morph = Morphology(tree)
+    awry_node = set()
+    cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
     for n, l in morph.pos_dict.items():
-        if n in morph.child_dict and len(morph.child_dict[n]) > 1 and morph.pos_dict[n][-1] != -1:
+        if n in morph.child_dict and len(morph.child_dict[n]) > 1 and \
+                morph.pos_dict[n][-1] != -1 and np.linalg.norm(morph.pos_dict[n][2:5] - cs) * spacing <= soma_radius:
+            # branch, no soma, away from soma
             with HidePrint():
                 center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [n], anchor_dist)
             angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
             angles = np.array(angles)
             protrude = np.array(protrude)
-            awry_angle |= set(protrude[angles < angle_thr])
-
-    rm_ind |= awry_angle
-    return prune(morph, rm_ind)
+            awry_node |= set(protrude[angles < angle_thr])
+    return prune(morph, awry_node)
 
 
 class CLI200k:
@@ -147,43 +155,62 @@ class CLI200k:
     BICCN 200K SWC post-processing CLI tools
     """
 
-    def __init__(self, files=None, dir=None, apo=None, jobs=1, chunk_size=1000):
+    def __init__(self, swc_files=None, img_files=None, ano=None, jobs=1, chunk_size=1000, spacing=(1, 1, 4), soma_radius=15):
         """
-        file comes first than apo,
-        a wild card matching is available, or give a list like [p1,p2,p3],
-        if dir is specified, anything from files or apo will be joined as a new path
-        also, this dir can decide the output folder structure, if not given, will be inferred as the top folder
-        for all input files
+        The script allows 3 input manners for swc and img files, which can work in parallel.
+
+        1. specify swc-files and img-files as 2 lists like [a,b,c], which should have the same length to map 1 by 1.
+
+        2. specify swc-files ad img-files as 2 wildcards. This assumes swc and images share their number as well as
+        their path pattern, meaning the file lists are generated and sorted by name.
+
+        3. specify ano an ano with same number of lines of SWCFILE and RAWIMAGE for everything, and they are matched by
+        the order of input, or it can be a wildcard for a set of ano with the same requirement.
+
+        Whichever way, the output paths are inferred based on the swc-files.
+
+        soma-radius: nodes within soma-radius are not pruned
+        spacing: swc and image scaling over the dimensions
+        jobs: number of processes
         """
-        if files is not None:
-            if type(files) is str:
-                if dir is not None:
-                    files = os.path.join(dir, files)
-                self.files = glob.glob(files, recursive=True)
-                if len(self.files) == 0:
-                    raise "no swc file found"
-            elif type(files) is list:
-                if dir is not None:
-                    files = [os.path.join(dir, f) for f in files]
-                self.files = files
+        assert type(swc_files) == type(img_files)
+        self.spacing = spacing
+        self.soma_radius = soma_radius
+        self.swc_files = []
+        self.img_files = []
+        if swc_files is not None:
+            if type(swc_files) is str:
+                self.swc_files.extend(sorted(glob.glob(swc_files, recursive=True)))
+                self.img_files.extend(sorted(glob.glob(img_files, recursive=True)))
+            elif type(swc_files) is list:
+                self.swc_files.extend(swc_files)
+                self.img_files.extend(img_files)
             else:
-                raise "match should be list or str"
-        elif apo is not None:
-            with open(apo) as f:
-                files = [i.rstrip().split('SWCFILE=')[1] for i in f.readlines()]
-                if dir is not None:
-                    files = [os.path.join(dir, f) for f in files]
-                self.files = files
-        else:
-            raise "either match or apo should be specified"
-        if dir is not None:
-            self.root = dir
-        else:
-            self.root = os.path.commonpath([os.path.dirname(f) for f in self.files])
+                raise "swc-files and img-files should be specified as either lists or strings"
+        assert len(self.swc_files) > 0 and len(self.swc_files) == len(self.img_files)
+        if ano is not None:
+            if type(ano) is str:
+                ano_files = glob.glob(ano, recursive=True)
+            elif type(ano) is list:
+                ano_files = ano
+            else:
+                raise "ano should be specified as either a list or a string"
+            for a in ano_files:
+                with open(a) as f:
+                    ano_dir = os.path.dirname(a)
+                    lines = [i.rstrip().split('=') for i in f.readlines()]
+                    swc_files = [i[1] if os.path.isabs(i[1]) else os.path.abspath(os.path.join(ano_dir, i[1]))
+                                 for i in lines if i[0] == "SWCFILE"]
+                    img_files = [i[1] if os.path.isabs(i[1]) else os.path.abspath(os.path.join(ano_dir, i[1]))
+                                 for i in lines if i[0] == "RAWIMAGE"]
+                    assert len(swc_files) > 0 and len(swc_files) == len(img_files)
+                    self.swc_files.extend(swc_files)
+                    self.img_files.extend(img_files)
+        self.root = os.path.commonpath([os.path.dirname(f) for f in self.swc_files])
         self.jobs = jobs
         self.chunk = chunk_size
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            self.trees = list(pool.map(swc_handler.parse_swc, self.files, chunksize=self.chunk))
+            self.trees = list(pool.map(swc_handler.parse_swc, self.swc_files, chunksize=self.chunk))
         print('swc loading finished.')
         print('loaded number of files: {}'.format(len(self.trees)))
 
@@ -193,17 +220,28 @@ class CLI200k:
         upper can be negative(default) to disable
         """
         bool_list = [*map(lambda tree: len(tree) >= downer and (upper < 0 or len(tree) <= upper), self.trees)]
-        self.files = list(compress(self.files, bool_list))
+        self.swc_files = list(compress(self.swc_files, bool_list))
         self.trees = list(compress(self.trees, bool_list))
         print('swc filtering finished.')
         print('remaining number of swc: {}'.format(len(self.trees)))
         return self
 
-    def angle_prune(self, angle_thr=90, anchor_dist=15, soma_radius=15, dist_thr=1.5, spacing=(1, 1, 4)):
+    def crossing_prune(self, anchor_dist=15, dist_thr=3, sampling=10):
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             self.trees = list(
-                pool.map(angle_prune,
-                         [(tree, angle_thr, anchor_dist, soma_radius, dist_thr, spacing) for tree in self.trees],
+                pool.map(crossing_prune,
+                         [(tree, img_path, anchor_dist, self.soma_radius, dist_thr, self.spacing, sampling)
+                          for tree, img_path in zip(self.trees, self.img_files)],
+                         chunksize=self.chunk)
+            )
+            print('angle prune done.')
+        return self
+
+    def branch_prune(self, angle_thr=90, anchor_dist=15):
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            self.trees = list(
+                pool.map(branch_prune,
+                         [(tree, angle_thr, anchor_dist, self.soma_radius, self.spacing) for tree in self.trees],
                          chunksize=self.chunk)
             )
             print('angle prune done.')
@@ -222,7 +260,7 @@ class CLI200k:
                 print('job terminated.')
                 return
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            for f, t in zip(self.files, self.trees):
+            for f, t in zip(self.swc_files, self.trees):
                 path = f.split('.swc')[0] + suffix + '.swc'
                 if dir is not None:
                     path = os.path.join(dir, path.split(self.root)[1].lstrip('/').lstrip('\\'))

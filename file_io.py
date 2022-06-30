@@ -15,6 +15,8 @@ import os
 import struct
 import numpy as np
 import sys
+import subprocess
+import platform
 
 
 def load_v3draw(path: str):
@@ -92,10 +94,23 @@ def save_v3draw(img: np.ndarray, path: str):
         f.write(img.tobytes())
 
 
-def load_image(imgfile: str):
-    if imgfile.endswith(".v3draw"):
-        return load_v3draw(imgfile)
-    return sitk.GetArrayFromImage(sitk.ReadImage(imgfile))
+def load_image(img_file: str, vaa3d="vaa3d", temp_dir=None):
+    if img_file.endswith("pbd"):
+        temp_file = img_file + "_temp.v3draw"
+        if platform.system() == "Windows":
+            subprocess.call(" ".join([vaa3d, "/x", "qc200k", "/f", "img_convert",
+                                      "/i", img_file, "/o", temp_file]))
+            img = load_v3draw(temp_file)
+            subprocess.call(" ".join(["rm", temp_file]))
+        else:
+            subprocess.call(" ".join([vaa3d, "-x", "qc200k", "-f", "img_convert",
+                                      "-i", img_file, "-o", temp_file]))
+            img = load_v3draw(temp_file)
+            subprocess.call(" ".join("del", temp_file))
+
+    if img_file.endswith(".v3draw"):
+        return load_v3draw(img_file)
+    return sitk.GetArrayFromImage(sitk.ReadImage(img_file))
 
 
 def save_image(outfile: str, img: np.ndarray):
@@ -105,8 +120,8 @@ def save_image(outfile: str, img: np.ndarray):
     return True
 
 
-def load_pickle(pklfile):
-    with open(pklfile, 'rb') as fp:
+def load_pickle(pkl_file):
+    with open(pkl_file, 'rb') as fp:
         data = pickle.load(fp)
     return data
 
