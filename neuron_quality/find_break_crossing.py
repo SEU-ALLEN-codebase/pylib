@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#================================================================
+# ================================================================
 #   Copyright (C) 2022 Yufeng Liu (Braintell, Southeast University). All rights reserved.
 #   
 #   Filename     : find_break_crossing.py
@@ -8,14 +8,16 @@
 #   Date         : 2022-04-01
 #   Description  : 
 #
-#================================================================
+# ================================================================
 import numpy as np
 from scipy.spatial import distance_matrix
 
 from swc_handler import parse_swc
 from math_utils import calc_included_angles_from_coords, calc_included_angles_from_vectors
 
-def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7):
+
+def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7,
+                           stop_by_branch=True):
     """ 
     Find the point of exact `dist` to the start pt on tree structure. args are:
     - pt: the start point, [coordinate]
@@ -29,7 +31,7 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
     - epsilon: small float to avoid zero-division error 
     """
 
-    d = 0 
+    d = 0
     ci = pt
     pts = [pt]
     while d < dist:
@@ -46,10 +48,10 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
 
             if is_parent:
                 anchor_idx = morph.pos_dict[anchor_idx][6]
-                if len(morph.child_dict[anchor_idx]) > 1:
+                if stop_by_branch and len(morph.child_dict[anchor_idx]) > 1:
                     break
             else:
-                if (anchor_idx not in morph.child_dict) or (len(morph.child_dict[anchor_idx]) > 1):
+                if (anchor_idx not in morph.child_dict) or (stop_by_branch and (len(morph.child_dict[anchor_idx]) > 1)):
                     break
                 else:
                     anchor_idx = morph.child_dict[anchor_idx][0]
@@ -60,10 +62,10 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
         pt_a = cc
     else:
         dcur = np.linalg.norm(cc - ci)
-        assert(dcur - dd >= 0)
+        assert (dcur - dd >= 0)
         pt_a = ci + (cc - ci) * (dcur - dd) / (dcur + epsilon)
         pts.append(pt_a)
-        
+
     if return_center_point:
         pt_a = np.mean(pts, axis=0)
 
@@ -71,7 +73,8 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
 
 
 class BreakFinder(object):
-    def __init__(self, morph, soma_radius=30, dist_thresh=4.0, line_length=5.0, angle_thresh=90., spacing=np.array([1.,1.,1.])):
+    def __init__(self, morph, soma_radius=30, dist_thresh=4.0, line_length=5.0, angle_thresh=90.,
+                 spacing=np.array([1., 1., 1.])):
         self.morph = morph
 
         self.soma_radius = soma_radius
@@ -96,7 +99,7 @@ class BreakFinder(object):
         ret = {}
         for idx1, tip1 in enumerate(tip_list):
             c1 = np.array(self.morph.pos_dict[tip1][2:5])
-            for idx2 in range(idx1+1, len(tip_list)):
+            for idx2 in range(idx1 + 1, len(tip_list)):
                 tip2 = tip_list[idx2]
                 c2 = np.array(self.morph.pos_dict[tip2][2:5])
                 # distance criterion
@@ -104,7 +107,7 @@ class BreakFinder(object):
                 if dist > self.dist_thresh: continue
 
                 # estimate the fiber distance
-                pid1 = self.morph.pos_dict[tip1][6] # parent id for tip1
+                pid1 = self.morph.pos_dict[tip1][6]  # parent id for tip1
                 pt1 = find_point_by_distance(c1, pid1, True, self.morph, self.line_length, False)
                 pid2 = self.morph.pos_dict[tip2][6]
                 pt2 = find_point_by_distance(c2, pid2, True, self.morph, self.line_length, False)
@@ -114,7 +117,7 @@ class BreakFinder(object):
                 ang = calc_included_angles_from_vectors(v1, v2)[0]
                 if ang > self.angle_thresh:
                     ret[(tip1, tip2)] = (ang, dist)
-                #print(tip1, tip2, ang, dist)
+                # print(tip1, tip2, ang, dist)
 
         return ret
 
@@ -144,10 +147,10 @@ class BreakFinder(object):
             except KeyError:
                 ret[tip_out_indices[i]] = [tip_out_indices[j]]
         return ret
-        
-        
+
+
 class CrossingFinder(object):
-    def __init__(self, morph, soma_radius=30., dist_thresh=3., spacing=np.array([1.,1.,4.])):
+    def __init__(self, morph, soma_radius=30., dist_thresh=3., spacing=np.array([1., 1., 4.])):
         self.morph = morph
         self.soma_radius = soma_radius
         self.dist_thresh = dist_thresh
@@ -159,57 +162,42 @@ class CrossingFinder(object):
         morph = self.morph
 
         cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
-        pset = set([])
-        visited = set([])
+        pset = set()
+        visited = set()
         for tid in morph.tips:
-            idx = tid 
+            idx = tid
             pre_tip_id = None
-
+            cur_tip_id = None
             while idx != morph.idx_soma:
-                if idx == -1: 
+                if idx == -1:
                     break
                 if idx in morph.child_dict:
                     n_child = len(morph.child_dict[idx])
-    
-                    if n_child == 2:
-                        cur_tip_id = idx 
-                        if cur_tip_id in visited: 
-                            idx = morph.pos_dict[idx][6]
-                            break
-
+                    if n_child >= 2:
+                        pre_tip_id = cur_tip_id
+                        cur_tip_id = idx
                         if pre_tip_id is not None:
+                            if pre_tip_id in visited:
+                                break
+                            visited.add(pre_tip_id)
                             c0 = np.array(morph.pos_dict[cur_tip_id][2:5])
                             c1 = np.array(morph.pos_dict[pre_tip_id][2:5])
-                            if np.linalg.norm((c0 - cs) * self.spacing) < self.soma_radius:
-                                break
-                            dist = np.linalg.norm(c0 - c1) 
-                            if (dist < self.dist_thresh) and ((pre_tip_id, cur_tip_id) not in pset):
-                                #print(f'{pre_tip_id}, {cur_tip_id}')
-                                pairs.append((pre_tip_id, cur_tip_id, dist))
-                                pset.add((pre_tip_id, cur_tip_id))
-                        #update tip
-                        pre_tip_id = cur_tip_id
-                        visited.add(pre_tip_id)
-                    elif n_child > 2:
-                        c = np.array(morph.pos_dict[idx][2:5])
-                        if np.linalg.norm((c - cs) * self.spacing) < self.soma_radius:
-                            break
-                        if idx in visited:
-                            idx = morph.pos_dict[idx][6]
-                            break
-                        else:
-                            points.append(idx)
-                            pre_tip_id = idx
-                            visited.add(idx)
-                        
-    
+                            if np.linalg.norm((c0 - cs) * self.spacing) > self.soma_radius:
+                                dist = np.linalg.norm(c0 - c1)
+                                if dist < self.dist_thresh:
+                                    pairs.append((pre_tip_id, cur_tip_id, dist))
+                                    pset.add(pre_tip_id)
+                                    pset.add(cur_tip_id)
                 idx = morph.pos_dict[idx][6]
 
-        #print(f'Dist: {dists.mean():.2f}, {dists.std():.2f}, {dists.max():.2f}, {dists.min():.2f}')
-        #for pair in pairs:
+            for idx, ch in morph.child_dict.items():
+                if len(ch) > 2 and idx not in pset and \
+                        np.linalg.norm((morph.pos_dict[idx][2:5] - cs) * self.spacing) > self.soma_radius:
+                    points.append(idx)
+
+        # print(f'Dist: {dists.mean():.2f}, {dists.std():.2f}, {dists.max():.2f}, {dists.min():.2f}')
+        # for pair in pairs:
         #    print(f'idx1 / idx2 and dist: {pair[0]} / {pair[1]} / {pair[2]}')
         print(f'Number of crossing and crossing-like: {len(points)} / {len(pairs)}')
 
         return points, pairs
-
-
