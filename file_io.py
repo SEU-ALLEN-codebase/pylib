@@ -47,4 +47,4 @@ def save_markers(outfile, markers, radius=0, shape=0, name='', comment='', c=(0,
         for marker in markers:
             x, y, z = marker
             fp.write(f'{x:3f}, {y:.3f}, {z:.3f}, {radius},{shape}, {name}, {comment},0,0,255\n')
-            
+
