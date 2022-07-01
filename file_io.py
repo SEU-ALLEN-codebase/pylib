@@ -11,24 +11,10 @@
 #================================================================
 import SimpleITK as sitk
 import pickle
-# import subprocess
-# import platform
 from v3d.io import *
 
 
 def load_image(img_file: str, vaa3d="vaa3d", temp_dir=None):
-    # if img_file.endswith("pbd"):
-    #     temp_file = img_file + "_temp.v3draw"
-    #     if platform.system() == "Windows":
-    #         subprocess.call(" ".join([vaa3d, "/x", "qc200k", "/f", "img_convert",
-    #                                   "/i", img_file, "/o", temp_file]))
-    #         img = load_v3draw(temp_file)
-    #         subprocess.call(" ".join(["rm", temp_file]))
-    #     else:
-    #         subprocess.call(" ".join([vaa3d, "-x", "qc200k", "-f", "img_convert",
-    #                                   "-i", img_file, "-o", temp_file]))
-    #         img = load_v3draw(temp_file)
-    #         subprocess.call(" ".join("del", temp_file))
     if img_file.endswith(".v3draw"):
         return load_v3draw(img_file)
     if img_file.endswith(".v3dpbd"):
