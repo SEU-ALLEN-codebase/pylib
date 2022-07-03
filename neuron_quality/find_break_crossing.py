@@ -17,13 +17,13 @@ from math_utils import calc_included_angles_from_coords, calc_included_angles_fr
 
 
 def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7,
-                           stop_by_branch=True):
+                           stop_by_branch=True, only_tgt_pt=True):
     """ 
     Find the point of exact `dist` to the start pt on tree structure. args are:
     - pt: the start point, [coordinate]
     - anchor_idx: the first node on swc tree to trace, first child or parent node
     - is_parent: whether the anchor_idx is the parent of `pt`, otherwise child. 
-                 if an furcation points encounted, then break
+                 if a furcation points encounted, then break
     - morph: Morphology object for current tree
     - dist: distance threshold
     - return_center_point: whether to return the point with exact distance or
@@ -69,7 +69,10 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
     if return_center_point:
         pt_a = np.mean(pts, axis=0)
 
-    return pt_a
+    if only_tgt_pt:
+        return pt_a
+    else:
+        return pt_a, pts
 
 
 class BreakFinder(object):
