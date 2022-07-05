@@ -7,6 +7,7 @@ import math
 from itertools import compress
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 import fire
 from concurrent.futures import ProcessPoolExecutor, wait
 from scipy import stats
@@ -43,26 +44,26 @@ def anchor_angles(center: np.ndarray, p: np.ndarray, ch, spacing=(1, 1, 4)):
     return out
 
 
-def get_anchors(morph: Morphology, ind: list, dist: float):
+def get_anchors(morph: Morphology, ind: list, dist: float, spacing=(1, 1, 4), epsilon=1e-7):
     """
     get anchors for a set of swc nodes to calculate angles, suppose they are one, their center is their mean coordinate,
     getting anchors requires removing redundant protrudes
     :param dist: path distance thr
     :param ind: array of coordinates
     """
-    coords = [morph.pos_dict[i][2:5] for i in ind]
-    center = np.mean(coords, axis=0)
+    center = np.mean([morph.pos_dict[i][2:5] for i in ind], axis=0)
+    center_radius = np.mean([morph.pos_dict[i][5] for i in ind])
     protrude = set()
     for i in ind:
         if i in morph.child_dict:
-            protrude = protrude.union(morph.child_dict[i])
+            protrude |= set(morph.child_dict[i])
     com_line = None
     for i in ind:
         line = [i]
         while line[-1] != -1:
-            line.append(morph.pos_dict[line[-1]][-1])
+            line.append(morph.pos_dict[line[-1]][6])
         line.reverse()
-        protrude = protrude - set(line[:-1])
+        protrude -= set(line[1:])
         if com_line is None:
             com_line = line
         else:
@@ -73,12 +74,23 @@ def get_anchors(morph: Morphology, ind: list, dist: float):
     # nearest common parent of all indices
     com_node = com_line[-1]
     protrude = list(protrude)
-    anchor_p, pts_p = find_point_by_distance(center, com_node, True, morph, dist, False,
-                                             stop_by_branch=False, only_tgt_pt=False)
-    res = [find_point_by_distance(center, i, False, morph, dist, False,
-                                  stop_by_branch=False, only_tgt_pt=False) for i in protrude]
-    anchor_ch, pts_ch = [i[0] for i in res], [i[1] for i in res]
-    return center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch
+    # com_node == center can cause problem for spline
+    # for finding anchor_p, you must input sth different from the center to get the right pt list
+    if np.linalg.norm(center - morph.pos_dict[com_node][2:5]) <= epsilon:
+        p = morph.pos_dict[com_node][6]
+        # p can be -1 if the com_node is root
+        # but when this happens, com_node can hardly == center
+        # this case is dispelled when finding crossings
+    else:
+        p = com_node
+    anchor_p, pts_p, rad_p = find_point_by_distance(center, p, True, morph, dist, False, spacing=spacing,
+                                                    stop_by_branch=False, only_tgt_pt=False, radius=True,
+                                                    pt_rad=center_radius)
+    res = [find_point_by_distance(center, i, False, morph, dist, False, spacing=spacing,
+                                  stop_by_branch=False, only_tgt_pt=False, radius=True, pt_rad=center_radius)
+           for i in protrude]
+    anchor_ch, pts_ch, rad_ch = [i[0] for i in res], [i[1] for i in res], [i[2] for i in res]
+    return center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch
 
 
 def prune(morph: Morphology, ind_set: set):
@@ -102,21 +114,39 @@ def prune(morph: Morphology, ind_set: set):
     return [t for t in tree if t is not None]
 
 
-def gray_sampling(pts: list, img: np.ndarray, pix_win_radius=1):
+def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1):
     """
+    interpolate based on the coordinated point list given,
+    aggregate the grayscale of the points in the image,
+    can output either a median or the list of grayscale data
     there are at least 2 nodes in the input list
     """
-    gray = []
-    for p in pts:
-        gray.extend(img[0,
-                    round(p[2]) - pix_win_radius: round(p[2]) + pix_win_radius + 1,
-                    round(p[1]) - pix_win_radius: round(p[1]) + pix_win_radius + 1,
-                    round(p[0]) - pix_win_radius: round(p[0]) + pix_win_radius + 1].reshape(-1))
+    dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
+    dist.insert(0, 0)
+    dist_cum = np.cumsum(dist)
+    cs = CubicSpline(dist_cum, np.array(pts))
+    xs = np.arange(0, dist_cum[-1], dist_cum[-1] / sampling)
+    new_pts = cs(xs)
+    gray = [img[0,
+            round(p[2]) - pix_win_radius: round(p[2]) + pix_win_radius + 1,
+            round(p[1]) - pix_win_radius: round(p[1]) + pix_win_radius + 1,
+            round(p[0]) - pix_win_radius: round(p[0]) + pix_win_radius + 1].max()
+            for p in new_pts]
     return gray
 
 
+def radius_sampling(pts: list, rads: list, sampling=10):
+    dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
+    dist.insert(0, 0)
+    dist_cum = np.cumsum(dist)
+    cs = CubicSpline(dist_cum, rads)
+    xs = np.arange(0, dist_cum[-1], dist_cum[-1] / sampling)
+    new_rads = cs(xs)
+    return new_rads
+
+
 def crossing_prune(args):
-    tree, img_path, anchor_dist, soma_radius, dist_thr, spacing, pix_win_radius= args
+    tree, img_path, anchor_dist, soma_radius, dist_thr, spacing, sampling, pix_win_radius = args
     morph = Morphology(tree)
     cf = CrossingFinder(morph, soma_radius, dist_thr)
     img = load_image(img_path)
@@ -124,54 +154,66 @@ def crossing_prune(args):
         tri, db = cf.find_crossing_pairs()
     rm_ind = set()
 
-    def scoring(center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch):
+    def scoring(center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p: list, rad_ch: list):
         angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
-        angle_diff = [abs(a - 180) for a in angles]
-        gray_p_med = np.median(gray_sampling(pts_p, img, pix_win_radius))
-        gray_ch_med = [np.median(gray_sampling(pts, img, pix_win_radius)) for pts in pts_ch]
-        gray_diff = [abs(g - gray_p_med) for g in gray_ch_med]
+        angle_diff = [abs(a - 180) + 1 for a in angles]
+        gray_p_med = np.median(gray_sampling(pts_p, img, sampling, pix_win_radius))
+        gray_ch_med = [np.median(gray_sampling(pts, img, sampling, pix_win_radius)) for pts in pts_ch]
+        gray_diff = [abs(g - gray_p_med) + 1 for g in gray_ch_med]
+        radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling))
+        radius_ch_med = [np.median(radius_sampling(pts, rad, sampling)) for pts, rad in zip(pts_ch, rad_ch)]
+        radius_diff = [abs(r - radius_p_med) + 0.1 for r in radius_ch_med]
         # to = np.argmin(abs(angles - 180))     # used to pick the smallest angle difference for them
-        score = [a * g for a, g in zip(angle_diff, gray_diff)]
+        score = [a * g * r for a, g, r in zip(angle_diff, gray_diff, radius_diff)]
         return com_node, protrude, score
 
     for i in tri:
         # angle
         with HidePrint():
-            com_node, protrude, score = scoring(*get_anchors(morph, [i], anchor_dist))
-            rm_ind |= (set(protrude) - {protrude[np.argmin(score)]})
+            com_node, protrude, score = scoring(*get_anchors(morph, [i], anchor_dist, spacing))
+        rm_ind |= (set(protrude) - {protrude[np.argmin(score)]})
     for down, up, dist in db:
         # angle
-        with HidePrint():
-            com_node, protrude, score = scoring(*get_anchors(morph, [up, down], anchor_dist))
-            j = protrude[np.argmin(score)]
-            jj = morph.pos_dict[j][-1]
-            while j != com_node:
-                for k in morph.child_dict[jj]:
-                    if k != j:
-                        rm_ind.add(k)
-                j = jj
-                jj = morph.pos_dict[j][-1]
+        # with HidePrint():
+        com_node, protrude, score = scoring(*get_anchors(morph, [up, down], anchor_dist, spacing))
+        j = protrude[np.argmin(score)]
+        jj = morph.pos_dict[j][6]
+        while j != com_node:
+            for k in morph.child_dict[jj]:
+                if k != j:
+                    rm_ind.add(k)
+            j = jj
+            jj = morph.pos_dict[j][6]
     return prune(morph, rm_ind)
 
 
 def branch_prune(args):
-    tree, img_path, angle_thr, gray_pvalue, anchor_dist, soma_radius, spacing, pix_win_radius = args
+    tree, img_path, angle_thr, gray_pvalue, radius_pvalue, anchor_dist, \
+    soma_radius, spacing, sampling, pix_win_radius = args
     morph = Morphology(tree)
     img = load_image(img_path)
     awry_node = set()
     cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
     for n, l in morph.pos_dict.items():
         if n in morph.child_dict and len(morph.child_dict[n]) > 1 and \
-                morph.pos_dict[n][-1] != -1 and np.linalg.norm((morph.pos_dict[n][2:5] - cs) * spacing) <= soma_radius:
+                morph.pos_dict[n][6] != -1 and np.linalg.norm((morph.pos_dict[n][2:5] - cs) * spacing) > soma_radius:
             # branch, no soma, away from soma
             with HidePrint():
-                center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch = get_anchors(morph, [n], anchor_dist)
+                center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
+                    get_anchors(morph, [n], anchor_dist, spacing)
             angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
-            gray_p = gray_sampling(pts_p, img, pix_win_radius)
-            gray_ch = [gray_sampling(pts, img, pix_win_radius) for pts in pts_ch]
-            pv = [stats.ttest_ind(gray_p, ch, equal_var=False).pvalue for ch in gray_ch]
+            gray_p = gray_sampling(pts_p, img, sampling, pix_win_radius)
+            gray_ch = [gray_sampling(pts, img, sampling, pix_win_radius) for pts in pts_ch]
+            radius_p = radius_sampling(pts_p, rad_p, sampling)
+            radius_ch = [radius_sampling(pts, rad, sampling) for pts, rad in zip(pts_ch, rad_ch)]
+            gray_pv = [stats.ttest_ind(gray_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
+                       for ch in gray_ch]
+            radius_pv = [stats.ttest_ind(radius_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
+                         for ch in radius_ch]
             protrude = np.array(protrude)
-            awry_node |= set(protrude[(np.array(angles) < angle_thr) & (np.array(pv) < gray_pvalue)])
+            awry_node |= set(protrude[(np.array(angles) < angle_thr)
+                                      | (np.array(gray_pv) < gray_pvalue)
+                                      | (np.array(radius_pv) < radius_pvalue)])
     return prune(morph, awry_node)
 
 
@@ -181,7 +223,7 @@ class CLI200k:
     """
 
     def __init__(self, swc_files=None, img_files=None, ano=None,
-                 jobs=1, chunk_size=1000, spacing=(1, 1, 4), soma_radius=15, pix_win_radius=1):
+                 jobs=1, chunk_size=1000, spacing=(1, 1, 3), soma_radius=15, sampling=10, pix_win_radius=2):
         """
         The script allows 3 input manners for swc and img files, which can work in parallel.
 
@@ -201,6 +243,7 @@ class CLI200k:
         """
         assert type(swc_files) == type(img_files)
         self.pix_win_radius = pix_win_radius
+        self.sampling = sampling
         self.spacing = spacing
         self.soma_radius = soma_radius
         self.swc_files = []
@@ -254,23 +297,24 @@ class CLI200k:
         print('remaining number of swc: {}'.format(len(self.trees)))
         return self
 
-    def crossing_prune(self, anchor_dist=15, dist_thr=3):
+    def crossing_prune(self, anchor_dist=15, dist_thr=5):
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             self.trees = list(
                 pool.map(crossing_prune,
-                         [(tree, img_path, anchor_dist, self.soma_radius, dist_thr, self.spacing, self.pix_win_radius)
+                         [(tree, img_path, anchor_dist, self.soma_radius, dist_thr,
+                           self.spacing, self.sampling, self.pix_win_radius)
                           for tree, img_path in zip(self.trees, self.img_files)],
                          chunksize=self.chunk)
             )
             print('crossing prune done.')
         return self
 
-    def branch_prune(self, angle_thr=90, gray_pvalue=0.01, anchor_dist=15):
+    def branch_prune(self, angle_thr=90, gray_pvalue=0.01, radius_pvalue=0.01, anchor_dist=15):
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             self.trees = list(
                 pool.map(branch_prune,
-                         [(tree, img_path, angle_thr, gray_pvalue, anchor_dist, self.soma_radius,
-                           self.spacing, self.pix_win_radius)
+                         [(tree, img_path, angle_thr, gray_pvalue, radius_pvalue, anchor_dist, self.soma_radius,
+                           self.spacing, self.sampling, self.pix_win_radius)
                           for tree, img_path in zip(self.trees, self.img_files)],
                          chunksize=self.chunk)
             )
