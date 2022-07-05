@@ -17,13 +17,13 @@ from math_utils import calc_included_angles_from_coords, calc_included_angles_fr
 
 
 def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7,
-                           stop_by_branch=True):
+                           spacing=(1, 1, 4), stop_by_branch=True, only_tgt_pt=True, radius=False, pt_rad=None):
     """ 
     Find the point of exact `dist` to the start pt on tree structure. args are:
     - pt: the start point, [coordinate]
     - anchor_idx: the first node on swc tree to trace, first child or parent node
     - is_parent: whether the anchor_idx is the parent of `pt`, otherwise child. 
-                 if an furcation points encounted, then break
+                 if a furcation points encounted, then break
     - morph: Morphology object for current tree
     - dist: distance threshold
     - return_center_point: whether to return the point with exact distance or
@@ -34,18 +34,22 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
     d = 0
     ci = pt
     pts = [pt]
+    ri = pt_rad
+    rad = [pt_rad]
     while d < dist:
         try:
             cc = np.array(morph.pos_dict[anchor_idx][2:5])
+            rr = morph.pos_dict[anchor_idx][5]
         except KeyError:
             print(f"Parent/Child node not found within distance: {dist}")
             break
-        d0 = np.linalg.norm(ci - cc)
+        d0 = np.linalg.norm((ci - cc) * spacing)
         d += d0
         if d < dist:
             ci = cc  # update coordinates
+            ri = rr
             pts.append(cc)
-
+            rad.append(rr)
             if is_parent:
                 anchor_idx = morph.pos_dict[anchor_idx][6]
                 if stop_by_branch and len(morph.child_dict[anchor_idx]) > 1:
@@ -61,15 +65,22 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
     if dd < 0:
         pt_a = cc
     else:
-        dcur = np.linalg.norm(cc - ci)
+        dcur = np.linalg.norm((cc - ci) * spacing)
         assert (dcur - dd >= 0)
         pt_a = ci + (cc - ci) * (dcur - dd) / (dcur + epsilon)
+        r_a = ri + (rr - ri) * (dcur - dd) / (dcur + epsilon)
         pts.append(pt_a)
+        rad.append(r_a)
 
     if return_center_point:
         pt_a = np.mean(pts, axis=0)
 
-    return pt_a
+    ret = pt_a
+    if not only_tgt_pt:
+        ret = ret, pts
+    if radius:
+        ret = *ret, rad
+    return ret
 
 
 class BreakFinder(object):
@@ -103,7 +114,7 @@ class BreakFinder(object):
                 tip2 = tip_list[idx2]
                 c2 = np.array(self.morph.pos_dict[tip2][2:5])
                 # distance criterion
-                dist = np.linalg.norm(c1 - c2)
+                dist = np.linalg.norm((c1 - c2) * self.spacing)
                 if dist > self.dist_thresh: continue
 
                 # estimate the fiber distance
@@ -150,11 +161,12 @@ class BreakFinder(object):
 
 
 class CrossingFinder(object):
-    def __init__(self, morph, soma_radius=30., dist_thresh=3., spacing=np.array([1., 1., 4.])):
+    def __init__(self, morph, soma_radius=30., dist_thresh=3., spacing=np.array([1., 1., 4.]), epsilon=1e-7):
         self.morph = morph
         self.soma_radius = soma_radius
         self.dist_thresh = dist_thresh
         self.spacing = spacing
+        self.epsilon = epsilon
 
     def find_crossing_pairs(self):
         pairs = []
@@ -183,8 +195,10 @@ class CrossingFinder(object):
                             c0 = np.array(morph.pos_dict[cur_tip_id][2:5])
                             c1 = np.array(morph.pos_dict[pre_tip_id][2:5])
                             if np.linalg.norm((c0 - cs) * self.spacing) > self.soma_radius:
-                                dist = np.linalg.norm(c0 - c1)
-                                if dist < self.dist_thresh:
+                                dist = np.linalg.norm((c0 - c1) * self.spacing)
+                                # for fear that a pair can point to soma
+                                ct = np.mean([morph.pos_dict[cur_tip_id][2:5], morph.pos_dict[pre_tip_id][2:5]], axis=0)
+                                if np.linalg.norm(ct - morph.pos_dict[morph.idx_soma][2:5]) > self.epsilon and dist < self.dist_thresh:
                                     pairs.append((pre_tip_id, cur_tip_id, dist))
                                     pset.add(pre_tip_id)
                                     pset.add(cur_tip_id)
@@ -194,10 +208,10 @@ class CrossingFinder(object):
                 if len(ch) > 2 and idx not in pset and \
                         np.linalg.norm((morph.pos_dict[idx][2:5] - cs) * self.spacing) > self.soma_radius:
                     points.append(idx)
+                    pset.add(idx)
 
         # print(f'Dist: {dists.mean():.2f}, {dists.std():.2f}, {dists.max():.2f}, {dists.min():.2f}')
         # for pair in pairs:
         #    print(f'idx1 / idx2 and dist: {pair[0]} / {pair[1]} / {pair[2]}')
         print(f'Number of crossing and crossing-like: {len(points)} / {len(pairs)}')
-
         return points, pairs
