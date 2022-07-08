@@ -125,13 +125,12 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1):
     dist.insert(0, 0)
     dist_cum = np.cumsum(dist)
     cs = CubicSpline(dist_cum, np.array(pts))
-    xs = np.arange(0, dist_cum[-1], dist_cum[-1] / sampling)
+    xs = np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling)
     new_pts = cs(xs)
-    gray = [img[0,
-            round(p[2]) - pix_win_radius: round(p[2]) + pix_win_radius + 1,
-            round(p[1]) - pix_win_radius: round(p[1]) + pix_win_radius + 1,
-            round(p[0]) - pix_win_radius: round(p[0]) + pix_win_radius + 1].max()
-            for p in new_pts]
+    start = (new_pts.round() - pix_win_radius).astype(int).clip(0)
+    end = (new_pts.round() + pix_win_radius + 1).astype(int).clip(None, np.array(img.shape[-1:-4:-1]) - 1)
+    gray = [img[0, s[2]: e[2], s[1]: e[1], s[0]: e[0]].max()
+            for s, e in zip(start, end) if (e - s > 0).all()]
     return gray
 
 
@@ -140,7 +139,7 @@ def radius_sampling(pts: list, rads: list, sampling=10):
     dist.insert(0, 0)
     dist_cum = np.cumsum(dist)
     cs = CubicSpline(dist_cum, rads)
-    xs = np.arange(0, dist_cum[-1], dist_cum[-1] / sampling)
+    xs = np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling)
     new_rads = cs(xs)
     return new_rads
 
@@ -174,8 +173,8 @@ def crossing_prune(args):
         rm_ind |= (set(protrude) - {protrude[np.argmin(score)]})
     for down, up, dist in db:
         # angle
-        # with HidePrint():
-        com_node, protrude, score = scoring(*get_anchors(morph, [up, down], anchor_dist, spacing))
+        with HidePrint():
+            com_node, protrude, score = scoring(*get_anchors(morph, [up, down], anchor_dist, spacing))
         j = protrude[np.argmin(score)]
         jj = morph.pos_dict[j][6]
         while j != com_node:
@@ -222,8 +221,8 @@ class CLI200k:
     BICCN 200K SWC post-processing CLI tools
     """
 
-    def __init__(self, swc_files=None, img_files=None, ano=None,
-                 jobs=1, chunk_size=1000, spacing=(1, 1, 3), soma_radius=15, sampling=10, pix_win_radius=2):
+    def __init__(self, swc=None, img=None, ano=None,
+                 jobs=1, chunk_size=1000, spacing=(1, 1, 3), soma_radius=15, sampling=10, pix_win_radius=1):
         """
         The script allows 3 input manners for swc and img files, which can work in parallel.
 
@@ -232,7 +231,7 @@ class CLI200k:
         2. specify swc-files ad img-files as 2 wildcards. This assumes swc and images share their number as well as
         their path pattern, meaning the file lists are generated and sorted by name.
 
-        3. specify ano with same number of lines of SWCFILE and RAWIMAGE for everything, and they are matched by
+        3. specify ano with same number of lines of SWCFILE and RAWIMG for everything, and they are matched by
         the order of input, or it can be a wildcard for a set of ano with the same requirement.
 
         Whichever way, the output paths are inferred based on the swc-files.
@@ -241,23 +240,23 @@ class CLI200k:
         spacing: swc and image scaling over the dimensions
         jobs: number of processes
         """
-        assert type(swc_files) == type(img_files)
+        assert type(swc) == type(img)
         self.pix_win_radius = pix_win_radius
         self.sampling = sampling
         self.spacing = spacing
         self.soma_radius = soma_radius
         self.swc_files = []
         self.img_files = []
-        if swc_files is not None:
-            if type(swc_files) is str:
-                self.swc_files.extend(sorted(glob.glob(swc_files, recursive=True)))
-                self.img_files.extend(sorted(glob.glob(img_files, recursive=True)))
-            elif type(swc_files) is list:
-                self.swc_files.extend(swc_files)
-                self.img_files.extend(img_files)
+        if swc is not None:
+            if type(swc) is str:
+                self.swc_files.extend(sorted(glob.glob(swc, recursive=True)))
+                self.img_files.extend(sorted(glob.glob(img, recursive=True)))
+            elif type(swc) is list:
+                self.swc_files.extend(swc)
+                self.img_files.extend(img)
             else:
                 raise "swc-files and img-files should be specified as either lists or strings"
-        assert len(self.swc_files) == len(self.img_files) > 0
+            assert len(self.swc_files) == len(self.img_files) > 0
         if ano is not None:
             if type(ano) is str:
                 ano_files = glob.glob(ano, recursive=True)
@@ -269,13 +268,13 @@ class CLI200k:
                 with open(a) as f:
                     ano_dir = os.path.dirname(a)
                     lines = [i.rstrip().split('=') for i in f.readlines()]
-                    swc_files = [i[1] if os.path.isabs(i[1]) else os.path.abspath(os.path.join(ano_dir, i[1]))
-                                 for i in lines if i[0] == "SWCFILE"]
-                    img_files = [i[1] if os.path.isabs(i[1]) else os.path.abspath(os.path.join(ano_dir, i[1]))
-                                 for i in lines if i[0] == "RAWIMAGE"]
-                    assert len(swc_files) > 0 and len(swc_files) == len(img_files)
-                    self.swc_files.extend(swc_files)
-                    self.img_files.extend(img_files)
+                    swc = [i[1] if os.path.isabs(i[1]) else os.path.abspath(os.path.join(ano_dir, i[1]))
+                           for i in lines if i[0] == "SWCFILE"]
+                    img = [i[1] if os.path.isabs(i[1]) else os.path.abspath(os.path.join(ano_dir, i[1]))
+                           for i in lines if i[0] == "RAWIMG"]
+                    assert len(swc) == len(img) > 0
+                    self.swc_files.extend(swc)
+                    self.img_files.extend(img)
         self.root = os.path.commonpath([os.path.dirname(f) for f in self.swc_files])
         self.jobs = jobs
         self.chunk = chunk_size
@@ -337,7 +336,7 @@ class CLI200k:
             for f, t in zip(self.swc_files, self.trees):
                 path = f.split('.swc')[0] + suffix + '.swc'
                 if dir is not None:
-                    path = os.path.join(dir, path.split(self.root)[1].lstrip('/').lstrip('\\'))
+                    path = os.path.join(dir, os.path.relpath(path, self.root))
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                 swc_handler.write_swc(t, path)
         print('swc writing finished.')
