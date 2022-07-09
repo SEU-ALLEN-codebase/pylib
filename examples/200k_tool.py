@@ -10,7 +10,8 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 import fire
 from concurrent.futures import ProcessPoolExecutor, wait
-from scipy import stats
+from scipy.stats import ttest_ind
+from sklearn.cluster import DBSCAN
 
 from file_io import load_image, save_markers
 import swc_handler
@@ -205,15 +206,30 @@ def branch_prune(args):
             gray_ch = [gray_sampling(pts, img, sampling, pix_win_radius) for pts in pts_ch]
             radius_p = radius_sampling(pts_p, rad_p, sampling)
             radius_ch = [radius_sampling(pts, rad, sampling) for pts, rad in zip(pts_ch, rad_ch)]
-            gray_pv = [stats.ttest_ind(gray_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
+            gray_pv = [ttest_ind(gray_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
                        for ch in gray_ch]
-            radius_pv = [stats.ttest_ind(radius_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
+            radius_pv = [ttest_ind(radius_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
                          for ch in radius_ch]
             protrude = np.array(protrude)
             awry_node |= set(protrude[(np.array(angles) < angle_thr)
                                       | (np.array(gray_pv) < gray_pvalue)
                                       | (np.array(radius_pv) < radius_pvalue)])
     return prune(morph, awry_node)
+
+
+def soma_limit_filter(args):
+    tree, soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps = args
+    morph = Morphology(tree)
+    dist = morph.get_distances_to_soma()
+    soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
+    if soma_r < min_radius:
+        return not min_radius_remove
+    pass_r = soma_r * pass_rate
+    db = DBSCAN(eps=eps, min_samples=1)
+    lab = db.fit_predict([t[2:5] for t in tree if t[5] >= pass_r])
+    ct = morph.pos_dict[morph.idx_soma][2:5]
+    outer_soma = [p for p in db.components_ if np.linalg.norm(p - ct) > soma_radius]
+    return len(outer_soma) <= max_count - 1
 
 
 class CLI200k:
@@ -296,6 +312,23 @@ class CLI200k:
         print('remaining number of swc: {}'.format(len(self.trees)))
         return self
 
+    def soma_limit_filter(self, max_count=3, min_radius=5, pass_rate=0.8, min_radius_remove=False, eps=10):
+        """
+        filter swc to have a limited number of somas
+        """
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            bool_list = list(
+                pool.map(soma_limit_filter,
+                         [(tree, self.soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps) for tree in self.trees],
+                         chunksize=self.chunk)
+            )
+            self.swc_files = list(compress(self.swc_files, bool_list))
+            self.trees = list(compress(self.trees, bool_list))
+            self.img_files = list(compress(self.img_files, bool_list))
+            print('swc soma number filtering finished.')
+            print("remaining number of swc: {}".format(len(self.trees)))
+        return self
+
     def crossing_prune(self, anchor_dist=15, dist_thr=5):
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             self.trees = list(
@@ -320,7 +353,7 @@ class CLI200k:
             print('branch prune done.')
         return self
 
-    def write(self, dir=None, suffix="_filtered"):
+    def write_swc(self, dir=None, suffix="_filtered"):
         """
         add suffix between file name and file type
         """
@@ -340,6 +373,14 @@ class CLI200k:
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                 swc_handler.write_swc(t, path)
         print('swc writing finished.')
+        return self
+
+    def write_ano(self, ano=""):
+        assert ano
+        with open(ano, 'w') as f:
+            f.writelines(["SWCFILE=" + f + "\n" for f in self.swc_files])
+            f.writelines(["IMGFILE=" + f + "\n" for f in self.img_files])
+        return  self
 
 
 if __name__ == '__main__':
