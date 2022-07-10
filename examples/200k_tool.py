@@ -7,7 +7,7 @@ import math
 from itertools import compress
 
 import numpy as np
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import pchip_interpolate
 import fire
 from concurrent.futures import ProcessPoolExecutor, wait
 from scipy.stats import ttest_ind
@@ -95,6 +95,9 @@ def get_anchors(morph: Morphology, ind: list, dist: float, spacing=(1, 1, 4), ep
 
 
 def prune(morph: Morphology, ind_set: set):
+    """
+    prune all nodes given by ind_set in morph
+    """
     tree = morph.tree.copy()
     for i in ind_set:
         q = []
@@ -121,31 +124,38 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1):
     aggregate the grayscale of the points in the image,
     can output either a median or the list of grayscale data
     there are at least 2 nodes in the input list
+    sampling == 0 means no interpolation
     """
-    dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
-    dist.insert(0, 0)
-    dist_cum = np.cumsum(dist)
-    cs = CubicSpline(dist_cum, np.array(pts))
-    xs = np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling)
-    new_pts = cs(xs)
-    start = (new_pts.round() - pix_win_radius).astype(int).clip(0)
-    end = (new_pts.round() + pix_win_radius + 1).astype(int).clip(None, np.array(img.shape[-1:-4:-1]) - 1)
+    if sampling > 0:
+        dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
+        dist.insert(0, 0)
+        dist_cum = np.cumsum(dist)
+        pts = pchip_interpolate(dist_cum, np.array(pts),
+                                np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+    start = (pts.round() - pix_win_radius).astype(int).clip(0)
+    end = (pts.round() + pix_win_radius + 1).astype(int).clip(None, np.array(img.shape[-1:-4:-1]) - 1)
     gray = [img[0, s[2]: e[2], s[1]: e[1], s[0]: e[0]].max()
             for s, e in zip(start, end) if (e - s > 0).all()]
     return gray
 
 
 def radius_sampling(pts: list, rads: list, sampling=10):
-    dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
-    dist.insert(0, 0)
-    dist_cum = np.cumsum(dist)
-    cs = CubicSpline(dist_cum, rads)
-    xs = np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling)
-    new_rads = cs(xs)
-    return new_rads
+    """
+    sampling == 0 means returning the original radius list
+    """
+    if sampling > 0:
+        dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
+        dist.insert(0, 0)
+        dist_cum = np.cumsum(dist)
+        rads = pchip_interpolate(dist_cum, rads,
+                                 np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+    return rads
 
 
 def crossing_prune(args):
+    """
+    detect crossings and prune
+    """
     tree, img_path, anchor_dist, soma_radius, dist_thr, spacing, sampling, pix_win_radius = args
     morph = Morphology(tree)
     cf = CrossingFinder(morph, soma_radius, dist_thr)
@@ -188,6 +198,9 @@ def crossing_prune(args):
 
 
 def branch_prune(args):
+    """
+    prune any awry child for every branch
+    """
     tree, img_path, angle_thr, gray_pvalue, radius_pvalue, anchor_dist, \
     soma_radius, spacing, sampling, pix_win_radius = args
     morph = Morphology(tree)
@@ -218,6 +231,9 @@ def branch_prune(args):
 
 
 def soma_limit_filter(args):
+    """
+    limit the number of soma in an swc
+    """
     tree, soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps = args
     morph = Morphology(tree)
     dist = morph.get_distances_to_soma()
@@ -376,6 +392,9 @@ class CLI200k:
         return self
 
     def write_ano(self, ano=""):
+        """
+        output existing swc & img list to a linker file
+        """
         assert ano
         with open(ano, 'w') as f:
             f.writelines(["SWCFILE=" + f + "\n" for f in self.swc_files])
