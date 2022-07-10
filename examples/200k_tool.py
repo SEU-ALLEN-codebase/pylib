@@ -398,7 +398,7 @@ class CLI200k:
         assert ano
         with open(ano, 'w') as f:
             f.writelines(["SWCFILE=" + f + "\n" for f in self.swc_files])
-            f.writelines(["IMGFILE=" + f + "\n" for f in self.img_files])
+            f.writelines(["RAWIMG=" + f + "\n" for f in self.img_files])
             print('ano writing finished')
         return self
 
