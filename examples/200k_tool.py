@@ -372,7 +372,7 @@ class CLI200k:
                     path = os.path.join(dir, os.path.relpath(path, self.root))
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                 swc_handler.write_swc(t, path)
-        print('swc writing finished.')
+            print('swc writing finished.')
         return self
 
     def write_ano(self, ano=""):
@@ -380,7 +380,11 @@ class CLI200k:
         with open(ano, 'w') as f:
             f.writelines(["SWCFILE=" + f + "\n" for f in self.swc_files])
             f.writelines(["IMGFILE=" + f + "\n" for f in self.img_files])
-        return  self
+            print('ano writing finished')
+        return self
+
+    def end(self):
+        print("Done.")
 
 
 if __name__ == '__main__':
