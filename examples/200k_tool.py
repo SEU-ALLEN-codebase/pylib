@@ -250,12 +250,15 @@ def soma_limit_filter(args):
     return len(outer_soma) <= max_count - 1
 
 
+def node_limit_filter(args):
+    bool_list = [*map(lambda tree: len(tree) >= downer and (upper < 0 or len(tree) <= upper), self.trees)]
+
 class CLI200k:
     """
     BICCN 200K SWC post-processing CLI tools
     """
 
-    def __init__(self, swc=None, img=None, ano=None,
+    def __init__(self, swc=None, img=None, ano=None, output_dir=None,
                  jobs=1, chunk_size=1000, spacing=(1, 1, 3), soma_radius=15, sampling=10, pix_win_radius=1):
         """
         The script allows 3 input manners for swc and img files, which can work in parallel.
@@ -281,6 +284,7 @@ class CLI200k:
         self.soma_radius = soma_radius
         self.swc_files = []
         self.img_files = []
+        self.output_dir = output_dir
         if swc is not None:
             if type(swc) is str:
                 self.swc_files.extend(sorted(glob.glob(swc, recursive=True)))
@@ -310,24 +314,34 @@ class CLI200k:
                     self.swc_files.extend(swc)
                     self.img_files.extend(img)
         self.root = os.path.commonpath([os.path.dirname(f) for f in self.swc_files])
+        if self.output_dir is not None and self.root == "":
+            print('warning: no common dir for all the swc, will save to the original folder.')
+            self.output_dir = None
         self.jobs = jobs
         self.chunk = chunk_size
-        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            self.trees = list(pool.map(swc_handler.parse_swc, self.swc_files, chunksize=self.chunk))
+        # with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+        #     self.trees = list(pool.map(swc_handler.parse_swc, self.swc_files, chunksize=self.chunk))
         print('swc loading finished.')
-        print('loaded number of files: {}'.format(len(self.trees)))
+        print('number of swc: {}'.format(len(self.swc_files)))
 
     def node_limit_filter(self, downer=1, upper=-1):
         """
         given a closed interval, return a list of swc paths that meet the range
         upper can be negative(default) to disable
         """
-        bool_list = [*map(lambda tree: len(tree) >= downer and (upper < 0 or len(tree) <= upper), self.trees)]
-        self.swc_files = list(compress(self.swc_files, bool_list))
-        self.trees = list(compress(self.trees, bool_list))
-        self.img_files = list(compress(self.img_files, bool_list))
-        print('swc node filtering finished.')
-        print('remaining number of swc: {}'.format(len(self.trees)))
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            bool_list = list(
+                pool.map(soma_limit_filter,
+                         [(tree, self.soma_radius, max_count, min_radius, pass_rate,
+                           min_radius_remove, eps, self.spacing) for tree in self.trees],
+                         chunksize=self.chunk)
+            )
+            bool_list = [*map(lambda tree: len(tree) >= downer and (upper < 0 or len(tree) <= upper), self.trees)]
+            self.swc_files = list(compress(self.swc_files, bool_list))
+            # self.trees = list(compress(self.trees, bool_list))
+            self.img_files = list(compress(self.img_files, bool_list))
+            print('swc node filtering finished.')
+            print('remaining number of swc: {}'.format(len(self.trees)))
         return self
 
     def soma_limit_filter(self, max_count=3, min_radius=5, pass_rate=0.8, min_radius_remove=False, eps=10):
@@ -342,7 +356,7 @@ class CLI200k:
                          chunksize=self.chunk)
             )
             self.swc_files = list(compress(self.swc_files, bool_list))
-            self.trees = list(compress(self.trees, bool_list))
+            # self.trees = list(compress(self.trees, bool_list))
             self.img_files = list(compress(self.img_files, bool_list))
             print('swc soma number filtering finished.')
             print("remaining number of swc: {}".format(len(self.trees)))
