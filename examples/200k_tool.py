@@ -126,6 +126,7 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spa
     there are at least 2 nodes in the input list
     sampling == 0 means no interpolation
     """
+    pts = np.array(pts)
     if sampling > 0:
         dist = [np.linalg.norm((pts[i] - pts[i - 1]) * spacing) for i in range(1, len(pts))]
         dist.insert(0, 0)
