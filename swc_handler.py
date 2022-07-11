@@ -19,6 +19,7 @@ NEURITE_TYPES = {
     'dendrite': [3,4],
 }
 
+
 def load_spacings(spacing_file, zxy_order=False):
     """
     Load the spacing information for each brain. The spacing here refers to
@@ -42,6 +43,7 @@ def load_spacings(spacing_file, zxy_order=False):
     
     return spacing_dict
 
+
 def parse_swc(swc_file):
     tree = []
     with open(swc_file) as fp:
@@ -61,13 +63,15 @@ def parse_swc(swc_file):
     
     return tree
 
+
 def write_swc(tree, swc_file):
     with open(swc_file, 'w') as fp:
         fp.write(f'##n type x y z r parent\n')
         for leaf in tree:
             idx, type_, x, y, z, r, p = leaf
             fp.write(f'{idx:d} {type_:d} {x:.2f} {y:.2f} {z:.2f} {r:.1f} {p:d}\n')
- 
+
+
 def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
     for leaf in tree:
         if leaf[p_idx_in_leaf] == p_soma:
@@ -76,12 +80,14 @@ def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
     #raise ValueError("Could not find the soma node!")
     return -99
 
+
 def find_soma_index(tree, p_soma=-1):
     for i, leaf in enumerate(tree):
         if leaf[-1] == p_soma:
             return i
     #raise ValueError("find_soma_index: Could not find the somma node!")
     return -99
+
 
 def get_child_dict(tree, p_idx_in_leaf=6):
     child_dict = {}
@@ -93,12 +99,14 @@ def get_child_dict(tree, p_idx_in_leaf=6):
             child_dict[p_idx] = [leaf[0]]
     return child_dict
 
+
 def get_index_dict(tree):
     index_dict = {}
     for i, leaf in enumerate(tree):
         idx = leaf[0]
         index_dict[idx] = i
     return index_dict
+
 
 def is_in_box(x, y, z, imgshape):
     """
@@ -110,6 +118,7 @@ def is_in_box(x, y, z, imgshape):
         z > imgshape[0] - 1:
         return False
     return True
+
 
 def trim_swc(tree_orig, imgshape, keep_candidate_points=True):
     """
@@ -177,6 +186,7 @@ def trim_swc(tree_orig, imgshape, keep_candidate_points=True):
 
     return tree_trim
 
+
 def trim_out_of_box(tree_orig, imgshape, keep_candidate_points=True):
     """ 
     Trim the out-of-box leaves
@@ -209,6 +219,7 @@ def trim_out_of_box(tree_orig, imgshape, keep_candidate_points=True):
                         break
     return tree
 
+
 def get_specific_neurite(tree, type_id):
     if (not isinstance(type_id, list)) and (not isinstance(type_id, tuple)):
         type_id = (type_id,)
@@ -218,6 +229,7 @@ def get_specific_neurite(tree, type_id):
         if leaf[1] in type_id:
             new_tree.append(leaf)
     return new_tree
+
 
 def shift_swc(swc_file, sx, sy, sz):
     if type(swc_file) == list:
@@ -233,6 +245,7 @@ def shift_swc(swc_file, sx, sy, sz):
         node = (idx, type_, x, y, z, r, p)
         new_tree.append(node)
     return new_tree
+
 
 def scale_swc(swc_file, scale):
     if type(swc_file) == list:
@@ -255,6 +268,7 @@ def scale_swc(swc_file, scale):
         node = (idx, type_, x, y, z, r, p)
         new_tree.append(node)
     return new_tree
+
 
 def tree_to_voxels(tree, crop_box):
     # crop_box in (z,y,x) order
