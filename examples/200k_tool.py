@@ -77,7 +77,7 @@ def get_anchors(morph: Morphology, ind: list, dist: float, spacing=(1, 1, 4), ep
     protrude = list(protrude)
     # com_node == center can cause problem for spline
     # for finding anchor_p, you must input sth different from the center to get the right pt list
-    if np.linalg.norm(center - morph.pos_dict[com_node][2:5]) <= epsilon:
+    if np.linalg.norm((center - morph.pos_dict[com_node][2:5]) * spacing) <= epsilon:
         p = morph.pos_dict[com_node][6]
         # p can be -1 if the com_node is root
         # but when this happens, com_node can hardly == center
@@ -118,7 +118,7 @@ def prune(morph: Morphology, ind_set: set):
     return [t for t in tree if t is not None]
 
 
-def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1):
+def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spacing=(1, 1, 4)):
     """
     interpolate based on the coordinated point list given,
     aggregate the grayscale of the points in the image,
@@ -127,7 +127,7 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1):
     sampling == 0 means no interpolation
     """
     if sampling > 0:
-        dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
+        dist = [np.linalg.norm((pts[i] - pts[i - 1]) * spacing) for i in range(1, len(pts))]
         dist.insert(0, 0)
         dist_cum = np.cumsum(dist)
         pts = pchip_interpolate(dist_cum, np.array(pts),
@@ -139,12 +139,12 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1):
     return gray
 
 
-def radius_sampling(pts: list, rads: list, sampling=10):
+def radius_sampling(pts: list, rads: list, sampling=10, spacing=(1, 1, 4)):
     """
     sampling == 0 means returning the original radius list
     """
     if sampling > 0:
-        dist = [np.linalg.norm(pts[i] - pts[i - 1]) for i in range(1, len(pts))]
+        dist = [np.linalg.norm((pts[i] - pts[i - 1]) * spacing) for i in range(1, len(pts))]
         dist.insert(0, 0)
         dist_cum = np.cumsum(dist)
         rads = pchip_interpolate(dist_cum, rads,
@@ -167,11 +167,12 @@ def crossing_prune(args):
     def scoring(center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p: list, rad_ch: list):
         angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
         angle_diff = [abs(a - 180) + 1 for a in angles]
-        gray_p_med = np.median(gray_sampling(pts_p, img, sampling, pix_win_radius))
-        gray_ch_med = [np.median(gray_sampling(pts, img, sampling, pix_win_radius)) for pts in pts_ch]
+        gray_p_med = np.median(gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing))
+        gray_ch_med = [np.median(gray_sampling(pts, img, sampling, pix_win_radius, spacing=spacing)) for pts in pts_ch]
         gray_diff = [abs(g - gray_p_med) + 1 for g in gray_ch_med]
-        radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling))
-        radius_ch_med = [np.median(radius_sampling(pts, rad, sampling)) for pts, rad in zip(pts_ch, rad_ch)]
+        radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
+        radius_ch_med = [np.median(radius_sampling(pts, rad, sampling, spacing=spacing))
+                         for pts, rad in zip(pts_ch, rad_ch)]
         radius_diff = [abs(r - radius_p_med) + 0.1 for r in radius_ch_med]
         # to = np.argmin(abs(angles - 180))     # used to pick the smallest angle difference for them
         score = [a * g * r for a, g, r in zip(angle_diff, gray_diff, radius_diff)]
@@ -215,10 +216,10 @@ def branch_prune(args):
                 center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
                     get_anchors(morph, [n], anchor_dist, spacing)
             angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
-            gray_p = gray_sampling(pts_p, img, sampling, pix_win_radius)
-            gray_ch = [gray_sampling(pts, img, sampling, pix_win_radius) for pts in pts_ch]
-            radius_p = radius_sampling(pts_p, rad_p, sampling)
-            radius_ch = [radius_sampling(pts, rad, sampling) for pts, rad in zip(pts_ch, rad_ch)]
+            gray_p = gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing)
+            gray_ch = [gray_sampling(pts, img, sampling, pix_win_radius, spacing=spacing) for pts in pts_ch]
+            radius_p = radius_sampling(pts_p, rad_p, sampling, spacing=spacing)
+            radius_ch = [radius_sampling(pts, rad, sampling, spacing=spacing) for pts, rad in zip(pts_ch, rad_ch)]
             gray_pv = [ttest_ind(gray_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
                        for ch in gray_ch]
             radius_pv = [ttest_ind(radius_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
@@ -234,16 +235,17 @@ def soma_limit_filter(args):
     """
     limit the number of soma in an swc
     """
-    tree, soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps = args
+    tree, soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps, spacing, min_branch = args
     morph = Morphology(tree)
-    dist = morph.get_distances_to_soma()
+    dist = morph.get_distances_to_soma(spacing)
     soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
+    outer_soma = []
     if soma_r < min_radius:
         return not min_radius_remove
     pass_r = soma_r * pass_rate
     db = DBSCAN(eps=eps, min_samples=1)
-    lab = db.fit_predict([t[2:5] for t in tree if t[5] >= pass_r])
-    ct = morph.pos_dict[morph.idx_soma][2:5]
+    lab = db.fit_predict([t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing))
+    ct = morph.pos_dict[morph.idx_soma][2:5] * np.array(spacing)
     outer_soma = [p for p in db.components_ if np.linalg.norm(p - ct) > soma_radius]
     return len(outer_soma) <= max_count - 1
 
@@ -335,7 +337,8 @@ class CLI200k:
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             bool_list = list(
                 pool.map(soma_limit_filter,
-                         [(tree, self.soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps) for tree in self.trees],
+                         [(tree, self.soma_radius, max_count, min_radius, pass_rate,
+                           min_radius_remove, eps, self.spacing) for tree in self.trees],
                          chunksize=self.chunk)
             )
             self.swc_files = list(compress(self.swc_files, bool_list))

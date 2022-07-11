@@ -180,28 +180,25 @@ class CrossingFinder(object):
             idx = tid
             pre_tip_id = None
             cur_tip_id = None
-            while idx != morph.idx_soma:
-                if idx == -1:
-                    break
-                if idx in morph.child_dict:
-                    n_child = len(morph.child_dict[idx])
-                    if n_child >= 2:
-                        pre_tip_id = cur_tip_id
-                        cur_tip_id = idx
-                        if pre_tip_id is not None:
-                            if pre_tip_id in visited:
-                                break
-                            visited.add(pre_tip_id)
-                            c0 = np.array(morph.pos_dict[cur_tip_id][2:5])
-                            c1 = np.array(morph.pos_dict[pre_tip_id][2:5])
-                            if np.linalg.norm((c0 - cs) * self.spacing) > self.soma_radius:
-                                dist = np.linalg.norm((c0 - c1) * self.spacing)
-                                # for fear that a pair can point to soma
-                                ct = np.mean([morph.pos_dict[cur_tip_id][2:5], morph.pos_dict[pre_tip_id][2:5]], axis=0)
-                                if np.linalg.norm(ct - morph.pos_dict[morph.idx_soma][2:5]) > self.epsilon and dist < self.dist_thresh:
-                                    pairs.append((pre_tip_id, cur_tip_id, dist))
-                                    pset.add(pre_tip_id)
-                                    pset.add(cur_tip_id)
+            while idx != morph.idx_soma and idx != -1:
+                if idx in morph.child_dict and len(morph.child_dict[idx]) >= 2:
+                    pre_tip_id = cur_tip_id
+                    cur_tip_id = idx
+                    if pre_tip_id is not None:
+                        if pre_tip_id in visited:
+                            break
+                        visited.add(pre_tip_id)
+                        c0 = np.array(morph.pos_dict[cur_tip_id][2:5])
+                        c1 = np.array(morph.pos_dict[pre_tip_id][2:5])
+                        if np.linalg.norm((c0 - cs) * self.spacing) > self.soma_radius:
+                            dist = np.linalg.norm((c0 - c1) * self.spacing)
+                            # for fear that a pair can point to soma
+                            ct = np.mean([morph.pos_dict[cur_tip_id][2:5], morph.pos_dict[pre_tip_id][2:5]], axis=0)
+                            if np.linalg.norm(ct - morph.pos_dict[morph.idx_soma][2:5]) > self.epsilon and \
+                                    dist < self.dist_thresh:
+                                pairs.append((pre_tip_id, cur_tip_id, dist))
+                                pset.add(pre_tip_id)
+                                pset.add(cur_tip_id)
                 idx = morph.pos_dict[idx][6]
 
             for idx, ch in morph.child_dict.items():
@@ -215,3 +212,35 @@ class CrossingFinder(object):
         #    print(f'idx1 / idx2 and dist: {pair[0]} / {pair[1]} / {pair[2]}')
         print(f'Number of crossing and crossing-like: {len(points)} / {len(pairs)}')
         return points, pairs
+
+    def find_mega_crossing(self, mega_radius):
+        trails = []
+        cs = np.array(self.morph.pos_dict[self.morph.idx_soma][2:5])
+        for tid in self.morph.tips:
+            idx = tid
+            pres = []
+            while idx != self.morph.idx_soma and idx != -1:
+                if idx in self.morph.child_dict and len(self.morph.child_dict[idx]) >= 2:
+                    if pres:
+                        c0 = np.array(self.morph.pos_dict[idx][2:5])
+                        c1 = np.array(self.morph.pos_dict[pres[-1]][2:5])
+                        if np.linalg.norm((c0 - cs) * self.spacing) > self.soma_radius and \
+                                np.linalg.norm((c0 - c1) * self.spacing) < self.dist_thresh:
+                            pres.append(idx)
+                        else:
+                            if len(pres) > 1 or len(self.morph.child_dict[pres[-1]]) > 2:
+                                trails.append(pres)
+                            pres = []
+                    else:
+                        pres.append(idx)
+                idx = self.morph.pos_dict[idx][6]
+        # merge
+        out = []
+        end = np.unique([i[-1] for i in trails])
+        for i in end:
+            b = set.union(*[set(t) for t in trails if t[-1] == i])
+            ct = np.mean([self.morph.pos_dict[i][2:5] for i in b], axis=0)
+            if np.linalg.norm(ct - self.morph.pos_dict[self.morph.idx_soma][2:5]) > self.epsilon and \
+                    np.mean([np.linalg.norm(self.morph.pos_dict[i][2:5] - ct) for i in b]) <= mega_radius:
+                out.append(b)
+        return out

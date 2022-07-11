@@ -24,9 +24,11 @@ from swc_handler import get_child_dict, get_index_dict, find_soma_node, find_som
 
 sys.setrecursionlimit(100000)
 
+
 class TreeInitializeError(RuntimeError):
     def __init__(self, args):
         self.args = args
+
 
 class AbstractTree(object):
     def __init__(self, tree, p_soma=-1):
@@ -41,7 +43,6 @@ class AbstractTree(object):
         self.pos_dict = self.get_pos_dict()
         self.idx_soma = find_soma_node(tree, p_soma=self.p_soma)    # node index
         self.index_soma = find_soma_index(tree, p_soma)
-
 
     def get_nodes_by_types(self, neurite_type):
         nodes = []
@@ -67,7 +68,7 @@ class AbstractTree(object):
         volume = span.prod()
         return span, volume
 
-    def calc_node_distances(self):
+    def calc_node_distances(self, spacing=(1, 1, 4)):
         """
         Distance distribution for connecting nodes
         """
@@ -82,18 +83,18 @@ class AbstractTree(object):
                 coords2.append(coord2)
         coords1 = np.array(coords1)
         coords2 = np.array(coords2)
-        shift = coords2 - coords1
+        shift = (coords2 - coords1) * spacing
         dists = np.linalg.norm(shift, axis=1)
         stats = dists.mean(), dists.std(), dists.max(), dists.min()
         return stats
 
-    def get_distances_to_soma(self):
+    def get_distances_to_soma(self, spacing=(1, 1, 4)):
         """
         distance to soma for all nodes
         """
         c_soma = np.array(self.pos_dict[self.idx_soma][2:5])
         coords = np.array([node[2:5] for node in self.tree])
-        diff = coords - c_soma
+        diff = (coords - c_soma) * spacing
         dists = np.linalg.norm(diff, axis=1)
         return dists
 
