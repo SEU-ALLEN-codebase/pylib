@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#================================================================
+# ================================================================
 #   Copyright (C) 2021 Yufeng Liu (Braintell, Southeast University). All rights reserved.
 #   
 #   Filename     : neuron_dist_vaa3d.py
@@ -8,9 +8,10 @@
 #   Date         : 2021-10-28
 #   Description  : 
 #
-#================================================================
+# ================================================================
 
 import os, sys, glob
+
 sys.path.append(sys.path[0] + "/..")
 import math
 import numpy as np
@@ -18,7 +19,8 @@ import subprocess
 from skimage.draw import line_nd
 from scipy.spatial import distance_matrix
 
-from swc_handler import parse_swc, write_swc, scale_tree, is_in_box
+from swc_handler import parse_swc, write_swc, scale_swc, is_in_box
+
 
 def tree_to_voxels(tree, crop_box):
     # initialize position dict
@@ -26,7 +28,7 @@ def tree_to_voxels(tree, crop_box):
     new_tree = []
     for i, leaf in enumerate(tree):
         idx, type_, x, y, z, r, p = leaf
-        leaf_new = (*leaf, is_in_box(x,y,z,crop_box))
+        leaf_new = (*leaf, is_in_box(x, y, z, crop_box))
         pos_dict[leaf[0]] = leaf_new
         new_tree.append(leaf_new)
     tree = new_tree
@@ -34,8 +36,8 @@ def tree_to_voxels(tree, crop_box):
     xl, yl, zl = [], [], []
     for _, leaf in pos_dict.items():
         idx, type_, x, y, z, r, p, ib = leaf
-        if p == -1: continue # soma
-    
+        if p == -1: continue  # soma
+
         if p not in pos_dict:
             continue
 
@@ -53,9 +55,9 @@ def tree_to_voxels(tree, crop_box):
         zl.extend(list(lin[0]))
 
     voxels = []
-    for (xi,yi,zi) in zip(xl,yl,zl):
-        if is_in_box(xi,yi,zi,crop_box):
-            voxels.append((xi,yi,zi))
+    for (xi, yi, zi) in zip(xl, yl, zl):
+        if is_in_box(xi, yi, zi, crop_box):
+            voxels.append((xi, yi, zi))
     # remove duplicate points
     voxels = np.array(list(set(voxels)), dtype=np.float32)
     return voxels
@@ -71,6 +73,7 @@ def get_specific_neurite(tree, type_id):
             new_tree.append(leaf)
     return new_tree
 
+
 class DistanceEvaluation(object):
     def __init__(self, crop_box, neurite_type='all'):
         self.crop_box = crop_box
@@ -82,15 +85,15 @@ class DistanceEvaluation(object):
         nv2 = len(voxels2)
         if (nv1 > num_thresh) or (nv2 > num_thresh):
             # use block wise calculation
-            vq1 = [voxels1[i*num_thresh:(i+1)*num_thresh] for i in range(int(math.ceil(nv1/num_thresh)))]
-            vq2 = [voxels2[i*num_thresh:(i+1)*num_thresh] for i in range(int(math.ceil(nv2/num_thresh)))]
+            vq1 = [voxels1[i * num_thresh:(i + 1) * num_thresh] for i in range(int(math.ceil(nv1 / num_thresh)))]
+            vq2 = [voxels2[i * num_thresh:(i + 1) * num_thresh] for i in range(int(math.ceil(nv2 / num_thresh)))]
 
             dists1 = np.ones(nv1) * 1000000.
             dists2 = np.ones(nv2) * 1000000.
-            for i,v1 in enumerate(vq1):
+            for i, v1 in enumerate(vq1):
                 idx00 = i * num_thresh
                 idx01 = i * num_thresh + len(v1)
-                for j,v2 in enumerate(vq2):
+                for j, v2 in enumerate(vq2):
                     idx10 = j * num_thresh
                     idx11 = j * num_thresh + len(v2)
 
@@ -102,7 +105,6 @@ class DistanceEvaluation(object):
             dists1 = pdist.min(axis=1)
             dists2 = pdist.min(axis=0)
         return dists1, dists2
-        
 
     def calc_DMs(self, voxels1, voxels2):
         dist_results = {
@@ -135,15 +137,14 @@ class DistanceEvaluation(object):
             elif key == 'ESA':
                 dists1_ = dists1
                 dists2_ = dists2
-            dist_results[key] = (dists1_.mean(), dists2_.mean(), (dists1_.mean() + dists2_.mean())/2.)
+            dist_results[key] = (dists1_.mean(), dists2_.mean(), (dists1_.mean() + dists2_.mean()) / 2.)
         return dist_results
-        
 
     def calc_DIADEM(self, swc_file1, swc_file2, jar_path='/home/lyf/Softwares/packages/Diadem/DiademMetric.jar'):
         exec_str = f'java -jar {jar_path} -G {swc_file1} -T {swc_file2} -x 6 -R 3 -z 2 --xyPathThresh 0.08 --zPathThresh 0.20 --excess-nodes false'
-        #print(exec_str)
+        # print(exec_str)
         output = subprocess.check_output(exec_str, shell=True)
-        #print(output)
+        # print(output)
         score1 = float(output.split()[-1])
 
         exec_str = f'java -jar {jar_path} -G {swc_file2} -T {swc_file1} -x 6 -R 3 -z 2 --xyPathThresh 0.08 --zPathThresh 0.20 --excess-nodes false -r 17'
@@ -154,21 +155,20 @@ class DistanceEvaluation(object):
         score = (score1 + score2) / 2.
         return score1, score2, score
 
-
     def calc_distance(self, swc_file1, swc_file2, dist_type='DM', downsampling=True):
         if dist_type == 'DM':
             tree1 = parse_swc(swc_file1)
             tree2 = parse_swc(swc_file2)
             if downsampling:
                 # downsampling the swc by scale 2, that is, to secondary Resolution
-                tree1 = scale_tree(tree1, 0.5)
-                tree2 = scale_tree(tree2, 0.5)
+                tree1 = scale_swc(tree1, 0.5)
+                tree2 = scale_swc(tree2, 0.5)
 
             print(f'Length of nodes in tree1 and tree2: {len(tree1)}, {len(tree2)}')
             if self.neurite_type == 'all':
                 pass
             elif self.neurite_type == 'dendrite':
-                type_id = (3,4)
+                type_id = (3, 4)
                 tree1 = get_specific_neurite(tree1, type_id)
             elif self.neurite_type == 'axon':
                 type_id = 2
@@ -181,7 +181,7 @@ class DistanceEvaluation(object):
             voxels2 = tree_to_voxels(tree2, self.crop_box)
             dist = self.calc_DMs(voxels1, voxels2)
         elif dist_type == 'DIADEM':
-            dist = calc_DIADEM(swc_file1, swc_file2)
+            dist = self.calc_DIADEM(swc_file1, swc_file2)
         else:
             raise NotImplementedError
 
@@ -192,11 +192,11 @@ class DistanceEvaluation(object):
             tree_gt = parse_swc(swc_gt)
             tree_cmp1 = parse_swc(swc_cmp1)
             tree_cmp2 = parse_swc(swc_cmp2)
-            
+
             if self.neurite_type == 'all':
                 pass
             elif self.neurite_type == 'dendrite':
-                type_id = (3,4)
+                type_id = (3, 4)
                 tree_gt = get_specific_neurite(tree_gt, type_id)
             elif self.neurite_type == 'axon':
                 type_id = 2
@@ -204,7 +204,7 @@ class DistanceEvaluation(object):
             else:
                 raise NotImplementedError
             print(f'Length of nodes for gt, cmp1 and cmp2: {len(tree_gt)}, {len(tree_cmp1)}, {len(tree_cmp2)}')
-            
+
             # to successive voxels
             voxels_gt = tree_to_voxels(tree_gt, self.crop_box).astype(np.float32)
             voxels_cmp1 = tree_to_voxels(tree_cmp1, self.crop_box).astype(np.float32)
@@ -219,10 +219,11 @@ class DistanceEvaluation(object):
 
         return dist1, dist2
 
+
 def parse_files(test_list_file='./datalist/par_set_singleSoma.list'):
     # filter the files
     fsets = []
-    with open(test_list_file, 'r') as fp: 
+    with open(test_list_file, 'r') as fp:
         for line in fp.readlines():
             line = line.strip()
             if not line: continue
@@ -230,19 +231,18 @@ def parse_files(test_list_file='./datalist/par_set_singleSoma.list'):
     fsets = set(fsets)
     return fsets
 
+
 if __name__ == '__main__':
     import time
     import os, glob
     import pickle
 
-
     neurite_type = 'all'
     ut_dir = f'./results/standardized_dark1.0std'
     outfile = f'./results/temp.pkl'
     gt_dir = '/PBshare/lyf/transtation/seu_mouse/crop_data/dendriteImageSecR/swc_new'
-    crop_box = (512,512,256)
-    downsampling = False # downsampling to SecRes to speedup calculation
-
+    crop_box = (512, 512, 256)
+    downsampling = False  # downsampling to SecRes to speedup calculation
 
     # initialize the matrices
     avg = {
@@ -250,7 +250,6 @@ if __name__ == '__main__':
         'DSA': [0, 0, 0],
         'PDS': [0, 0, 0]
     }
-    
 
     fsets = parse_files()
     de = DistanceEvaluation(crop_box, neurite_type=neurite_type)
@@ -266,10 +265,10 @@ if __name__ == '__main__':
                 continue
             if prefix == '11700_8319_2991':
                 continue
-        
+
             gt_file = os.path.join(gt_dir, br_id, f'{tr_name}')
-        
-            dr =  de.calc_distance(gt_file, tr_file, downsampling=downsampling)
+
+            dr = de.calc_distance(gt_file, tr_file, downsampling=downsampling)
             dr_dict[prefix] = dr
             print(f'{tr_name} in {time.time() - t0} seconds')
             for key in dr:
@@ -279,7 +278,7 @@ if __name__ == '__main__':
                     avg[key][kk] = avg[key][kk] + dr[key][kk]
                 print(f'{key}: {dr[key][0]}, {dr[key][1]}, {dr[key][2]}')
             print('\n')
- 
+
     ns /= 3
     for k1, va in avg.items():
         va1, va2, va3 = va
@@ -289,8 +288,6 @@ if __name__ == '__main__':
         print(f'{k1}: {va1}, {va2}, {va3}')
     print(f'{ns} files left!')
 
-   
     # save result to file
     with open(outfile, 'wb') as fp:
         pickle.dump(dr_dict, fp)
-
