@@ -240,12 +240,11 @@ def soma_limit_filter(args):
     morph = Morphology(tree)
     dist = morph.get_distances_to_soma(spacing)
     soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
-    outer_soma = []
     if soma_r < min_radius:
         return not min_radius_remove
     pass_r = soma_r * pass_rate
     db = DBSCAN(eps=eps, min_samples=1)
-    lab = db.fit_predict([t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing))
+    db.fit([t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing))
     ct = morph.pos_dict[morph.idx_soma][2:5] * np.array(spacing)
     outer_soma = [p for p in db.components_ if np.linalg.norm(p - ct) > soma_radius]
     return len(outer_soma) <= max_count - 1
