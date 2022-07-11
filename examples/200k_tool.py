@@ -400,6 +400,7 @@ class CLI200k:
         output existing swc & img list to a linker file
         """
         assert ano
+        os.makedirs(os.path.dirname(ano), exist_ok=True)
         with open(ano, 'w') as f:
             f.writelines(["SWCFILE=" + f + "\n" for f in self.swc_files])
             f.writelines(["RAWIMG=" + f + "\n" for f in self.img_files])
