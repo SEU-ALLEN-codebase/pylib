@@ -236,7 +236,7 @@ def soma_limit_filter(args):
     """
     limit the number of soma in an swc
     """
-    tree, soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps, spacing, min_branch = args
+    tree, soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps, spacing = args
     morph = Morphology(tree)
     dist = morph.get_distances_to_soma(spacing)
     soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
