@@ -64,8 +64,16 @@ def parse_swc(swc_file):
     return tree
 
 
-def write_swc(tree, swc_file):
+def write_swc(tree, swc_file, header=tuple()):
+    if header is None:
+        header = []
     with open(swc_file, 'w') as fp:
+        for s in header:
+            if not s.startswith("#"):
+                s = "#" + s
+            if not s.endswith("\n") or not s.endswith("\r"):
+                s += "\n"
+            fp.write(s)
         fp.write(f'##n type x y z r parent\n')
         for leaf in tree:
             idx, type_, x, y, z, r, p = leaf

@@ -14,7 +14,8 @@ def load_v3draw(path: str):
     formatkey = "raw_image_stack_by_hpeng"
     with open(path, "rb") as f:
         filesize = os.path.getsize(path)
-        assert (filesize >= len(formatkey) + 2 + 4 * 4 + 1)
+        header_len = len(formatkey) + 2 + 4 * 4 + 1
+        assert (filesize >= header_len)
         format = f.read(len(formatkey)).decode('utf-8')
         assert (format == formatkey)
         endianCodeData = f.read(1).decode('utf-8')
@@ -35,11 +36,13 @@ def load_v3draw(path: str):
             raise Exception('datatype be 1/2/4')
         sz = struct.unpack(endian + 'iiii', f.read(4 * 4))
         tot = sz[0] * sz[1] * sz[2] * sz[3]
-        if tot * datatype + 4 * 4 + 2 + 1 + len(formatkey) != filesize:
+        tot_buffer_len = tot * datatype
+        tot_len = tot_buffer_len + header_len
+        if tot_len != filesize:
             f.seek(-4 * 2, 1)
             tot = sz[0] * sz[1] * sz[2] * sz[3]
-            assert (tot * datatype + 4 * 4 + 2 + 1 + len(formatkey) == filesize)
-        img = np.frombuffer(f.read(tot), endian + dt)
+            assert (tot_len == filesize)
+        img = np.frombuffer(f.read(tot_buffer_len), endian + dt)
         return img.reshape(sz[-1:-5:-1])
 
 
