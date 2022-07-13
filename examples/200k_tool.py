@@ -7,9 +7,9 @@ import math
 from itertools import compress
 
 import numpy as np
-from scipy.interpolate import pchip_interpolate
+from scipy.interpolate import pchip_interpolate, interp1d
 import fire
-from concurrent.futures import ProcessPoolExecutor, wait
+from concurrent.futures import ProcessPoolExecutor
 from scipy.stats import ttest_ind
 from sklearn.cluster import DBSCAN
 
@@ -131,8 +131,10 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spa
         dist = [np.linalg.norm((pts[i] - pts[i - 1]) * spacing) for i in range(1, len(pts))]
         dist.insert(0, 0)
         dist_cum = np.cumsum(dist)
-        pts = pchip_interpolate(dist_cum, np.array(pts),
-                                np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+        f = interp1d(dist_cum, np.array(pts), axis=0)
+        pts = f(np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+        # pts = pchip_interpolate(dist_cum, np.array(pts),
+        #                         np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
     start = (pts.round() - pix_win_radius).astype(int).clip(0)
     end = (pts.round() + pix_win_radius + 1).astype(int).clip(None, np.array(img.shape[-1:-4:-1]) - 1)
     gray = [img[0, s[2]: e[2], s[1]: e[1], s[0]: e[0]].max()
@@ -148,8 +150,10 @@ def radius_sampling(pts: list, rads: list, sampling=10, spacing=(1, 1, 4)):
         dist = [np.linalg.norm((pts[i] - pts[i - 1]) * spacing) for i in range(1, len(pts))]
         dist.insert(0, 0)
         dist_cum = np.cumsum(dist)
-        rads = pchip_interpolate(dist_cum, rads,
-                                 np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+        f = interp1d(dist_cum, rads)
+        rads = f(np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+        # rads = pchip_interpolate(dist_cum, rads,
+        #                          np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
     return rads
 
 
@@ -361,7 +365,6 @@ class CLI200k:
         self.chunk = chunk_size
         # with ProcessPoolExecutor(max_workers=self.jobs) as pool:
         #     self.trees = list(pool.map(swc_handler.parse_swc, self.swc_files, chunksize=self.chunk))
-        print('swc loading finished.')
         print('number of swc: {}'.format(len(self.swc_files)))
 
     def node_limit_filter(self, downer=1, upper=-1):
@@ -422,6 +425,7 @@ class CLI200k:
             #              chunksize=self.chunk)
             # )
         self.swc_files = swc_saves
+        self.root = self.output_dir
         print('crossing prune done.')
         return self
 
@@ -442,6 +446,7 @@ class CLI200k:
         #                  chunksize=self.chunk)
         #     )
         self.swc_files = swc_saves
+        self.root = self.output_dir
         print('branch prune done.')
         return self
 
