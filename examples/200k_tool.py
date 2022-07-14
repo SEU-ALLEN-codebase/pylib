@@ -132,7 +132,7 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spa
         dist.insert(0, 0)
         dist_cum = np.cumsum(dist)
         f = interp1d(dist_cum, np.array(pts), axis=0)
-        pts = f(np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+        pts = f(np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling).clip(0, dist_cum[-1]))
         # pts = pchip_interpolate(dist_cum, np.array(pts),
         #                         np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
     start = (pts.round() - pix_win_radius).astype(int).clip(0)
@@ -151,7 +151,7 @@ def radius_sampling(pts: list, rads: list, sampling=10, spacing=(1, 1, 4)):
         dist.insert(0, 0)
         dist_cum = np.cumsum(dist)
         f = interp1d(dist_cum, rads)
-        rads = f(np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
+        rads = f(np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling).clip(0, dist_cum[-1]))
         # rads = pchip_interpolate(dist_cum, rads,
         #                          np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
     return rads
