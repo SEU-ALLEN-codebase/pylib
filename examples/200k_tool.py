@@ -10,8 +10,9 @@ import numpy as np
 from scipy.interpolate import pchip_interpolate, interp1d
 import fire
 from concurrent.futures import ProcessPoolExecutor
-from scipy.stats import ttest_ind
+from scipy.stats import ttest_ind, ttest_ind_from_stats
 from sklearn.cluster import DBSCAN
+import SimpleITK as sitk
 
 from file_io import load_image, save_markers
 import swc_handler
@@ -137,7 +138,7 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spa
         #                         np.arange(dist_cum[-1] / sampling, dist_cum[-1], dist_cum[-1] / sampling))
     start = (pts.round() - pix_win_radius).astype(int).clip(0)
     end = (pts.round() + pix_win_radius + 1).astype(int).clip(None, np.array(img.shape[-1:-4:-1]) - 1)
-    gray = [img[0, s[2]: e[2], s[1]: e[1], s[0]: e[0]].max()
+    gray = [img[s[2]: e[2], s[1]: e[1], s[0]: e[0]].max()
             for s, e in zip(start, end) if (e - s > 0).all()]
     return gray
 
@@ -167,6 +168,8 @@ def crossing_prune(args):
         morph = Morphology(tree)
         cf = CrossingFinder(morph, soma_radius, dist_thr)
         img = load_image(img_path)
+        if len(img.shape) == 4:
+            img = img[0]
         with HidePrint():
             tri, db = cf.find_crossing_pairs()
         rm_ind = set()
@@ -221,29 +224,30 @@ def branch_prune(args):
         tree = swc_handler.parse_swc(swc_path)
         morph = Morphology(tree)
         img = load_image(img_path)
+        if len(img.shape) == 4:
+            img = img[0]
         awry_node = set()
         cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
-        for n, l in morph.pos_dict.items():
-            if n in morph.child_dict and len(morph.child_dict[n]) > 1 and \
-                    morph.pos_dict[n][6] != -1 and np.linalg.norm(
-                (morph.pos_dict[n][2:5] - cs) * spacing) > soma_radius:
-                # branch, no soma, away from soma
-                with HidePrint():
-                    center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
-                        get_anchors(morph, [n], anchor_dist, spacing)
-                angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
-                gray_p = gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing)
-                gray_ch = [gray_sampling(pts, img, sampling, pix_win_radius, spacing=spacing) for pts in pts_ch]
-                radius_p = radius_sampling(pts_p, rad_p, sampling, spacing=spacing)
-                radius_ch = [radius_sampling(pts, rad, sampling, spacing=spacing) for pts, rad in zip(pts_ch, rad_ch)]
-                gray_pv = [ttest_ind(gray_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
-                           for ch in gray_ch]
-                radius_pv = [ttest_ind(radius_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
-                             for ch in radius_ch]
-                protrude = np.array(protrude)
-                awry_node |= set(protrude[(np.array(angles) < angle_thr)
-                                          | (np.array(gray_pv) < gray_pvalue)
-                                          | (np.array(radius_pv) < radius_pvalue)])
+        for n in morph.bifurcation + morph.multifurcation:
+            if np.linalg.norm((morph.pos_dict[n][2:5] - cs) * spacing) <= soma_radius:
+                continue
+            # branch, no soma, away from soma
+            with HidePrint():
+                center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
+                    get_anchors(morph, [n], anchor_dist, spacing)
+            angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
+            gray_p = gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing)
+            gray_ch = [gray_sampling(pts, img, sampling, pix_win_radius, spacing=spacing) for pts in pts_ch]
+            radius_p = radius_sampling(pts_p, rad_p, sampling, spacing=spacing)
+            radius_ch = [radius_sampling(pts, rad, sampling, spacing=spacing) for pts, rad in zip(pts_ch, rad_ch)]
+            gray_pv = [ttest_ind(gray_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
+                       for ch in gray_ch]
+            radius_pv = [ttest_ind(radius_p, ch, equal_var=False, random_state=1, alternative='less').pvalue
+                         for ch in radius_ch]
+            protrude = np.array(protrude)
+            awry_node |= set(protrude[(np.array(angles) < angle_thr)
+                                      | (np.array(gray_pv) < gray_pvalue)
+                                      | (np.array(radius_pv) < radius_pvalue)])
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         swc_handler.write_swc(prune(morph, awry_node), save_path)
     except Exception as e:
@@ -252,18 +256,18 @@ def branch_prune(args):
         return False
 
 
-def soma_limit_filter(args):
+def soma_limit_filter_radius(args):
     """
-    limit the number of soma in an swc
+    limit the number of soma in an swc, based on radius of nodes
     """
-    path, soma_radius, max_count, min_radius, pass_rate, min_radius_remove, eps, spacing = args
+    swc_path, soma_radius, max_count, min_radius, pass_rate, min_radius_keep, eps, spacing = args
     try:
-        tree = swc_handler.parse_swc(path)
+        tree = swc_handler.parse_swc(swc_path)
         morph = Morphology(tree)
         dist = morph.get_distances_to_soma(spacing)
         soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
         if soma_r < min_radius:
-            return not min_radius_remove
+            return min_radius_keep
         pass_r = soma_r * pass_rate
         db = DBSCAN(eps=eps, min_samples=1)
         db.fit([t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing))
@@ -272,7 +276,57 @@ def soma_limit_filter(args):
         return len(outer_soma) <= max_count - 1
     except Exception as e:
         print(str(e))
-        print("The above error occurred in soma limit filter. Proceed anyway and leave this swc out: " + path)
+        print("The above error occurred in soma limit filter radius. Proceed anyway and leave this swc out: " + swc_path)
+        return False
+
+
+def soma_limit_filter_gray(args):
+    """
+    limit the number of soma in an swc
+    """
+    swc_path, img_path, soma_radius, min_radius, max_count, win_radius, pass_rate, eps, spacing = args
+    try:
+        tree = swc_handler.parse_swc(swc_path)
+        img = load_image(img_path)
+        if len(img.shape) == 4:
+            img = img[0]
+        morph = Morphology(tree)
+        dist = morph.get_distances_to_soma(spacing)
+
+        def stat(ct):
+            ind = [np.clip([a - b, a + b + 1], 0, c - 1) for a, b, c in zip(ct, win_radius, img.shape[-1:-4:-1])]
+            ind = np.array(ind, dtype=int)
+            return img[ind[2][0]:ind[2][1], ind[1][0]:ind[1][1], ind[0][0]:ind[0][1]].flatten()
+
+        ct = morph.pos_dict[morph.idx_soma][2:5]
+        soma_stat = stat(ct)
+        if soma_stat.size <= np.dot(win_radius, (1, 1, 1)):
+            return False
+        ct *= np.array(spacing)
+        pts = morph.bifurcation | morph.multifurcation | set(t[0] for t in tree if t[5] >= min_radius)
+        pts = np.array([morph.pos_dict[i][2:5] * np.array(spacing) for i in pts])
+        if pts.size < 1:
+            return False
+        db = DBSCAN(eps=eps, min_samples=1)
+        labs = db.fit_predict(pts)
+        max_count -= 1
+        cluster = [pts[np.where(labs == i)] for i in np.unique(labs) if i != -1]
+        cluster.sort(key=len, reverse=True)
+        for i in cluster:
+            if max_count < 0:
+                break
+            c = i.mean(axis=0)
+            if np.linalg.norm(c - ct) <= soma_radius:
+                continue
+            t_stat = stat(c / spacing)
+            if t_stat.size <= np.dot(win_radius, (1, 1, 1)):
+                continue
+            if t_stat.mean() >= pass_rate * soma_stat.mean():
+                max_count -= 1
+        return max_count >= 0
+    except Exception as e:
+        print(str(e))
+        print("The above error occurred in soma limit filter gray. Proceed anyway and leave this swc out: " + swc_path)
         return False
 
 
@@ -386,15 +440,38 @@ class CLI200k:
             print('remaining number of swc: {}'.format(len(self.swc_files)))
         return self
 
-    def soma_limit_filter(self, max_count=3, min_radius=5, pass_rate=0.8, min_radius_remove=False, eps=10):
+    def soma_limit_filter_radius(self, max_count=3, min_radius=5, pass_rate=0.8, min_radius_keep=False, eps=10):
+        """
+        filter swc to have a limited number of soma, based on soma radius
+        """
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            bool_list = list(
+                pool.map(soma_limit_filter_radius,
+                         [(paths, self.soma_radius, max_count, min_radius, pass_rate,
+                           min_radius_keep, eps, self.spacing) for paths in self.swc_files], chunksize=self.chunk)
+            )
+            # bool_list = list(
+            #     pool.map(soma_limit_filter,
+            #              [(tree, self.soma_radius, max_count, min_radius, pass_rate,
+            #                min_radius_remove, eps, self.spacing) for tree in self.trees],
+            #              chunksize=self.chunk)
+            # )
+            # self.trees = list(compress(self.trees, bool_list))
+            self.swc_files = list(compress(self.swc_files, bool_list))
+            self.img_files = list(compress(self.img_files, bool_list))
+            print('swc soma number filtering finished.')
+            print("remaining number of swc: {}".format(len(self.swc_files)))
+        return self
+
+    def soma_limit_filter_gray(self, min_radius=3, max_count=3, win_radius=(6, 6, 4), pass_rate=0.5, eps=10):
         """
         filter swc to have a limited number of somas
         """
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             bool_list = list(
-                pool.map(soma_limit_filter,
-                         [(path, self.soma_radius, max_count, min_radius, pass_rate,
-                           min_radius_remove, eps, self.spacing) for path in self.swc_files], chunksize=self.chunk)
+                pool.map(soma_limit_filter_gray,
+                         [(*paths, self.soma_radius, min_radius, max_count, win_radius, pass_rate, eps, self.spacing)
+                          for paths in zip(self.swc_files, self.img_files)], chunksize=self.chunk)
             )
             # bool_list = list(
             #     pool.map(soma_limit_filter,
@@ -413,9 +490,9 @@ class CLI200k:
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             pool.map(crossing_prune,
-                     [(swc_path, img_path, save_path, anchor_dist, self.soma_radius, dist_thr,
+                     [(*paths, anchor_dist, self.soma_radius, dist_thr,
                        self.spacing, self.sampling, self.pix_win_radius)
-                      for swc_path, img_path, save_path in zip(self.swc_files, self.img_files, swc_saves)],
+                      for paths in zip(self.swc_files, self.img_files, swc_saves)],
                      chunksize=self.chunk)
             # self.trees = list(
             #     pool.map(crossing_prune,
@@ -433,9 +510,9 @@ class CLI200k:
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             pool.map(branch_prune,
-                     [(swc_path, img_path, save_path, angle_thr, gray_pvalue, radius_pvalue, anchor_dist,
+                     [(*paths, angle_thr, gray_pvalue, radius_pvalue, anchor_dist,
                        self.soma_radius, self.spacing, self.sampling, self.pix_win_radius)
-                      for swc_path, img_path, save_path in zip(self.swc_files, self.img_files, swc_saves)],
+                      for paths in zip(self.swc_files, self.img_files, swc_saves)],
                      chunksize=self.chunk)
         # with ProcessPoolExecutor(max_workers=self.jobs) as pool:
         #     self.trees = list(
