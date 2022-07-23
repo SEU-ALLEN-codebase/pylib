@@ -78,6 +78,11 @@ class DistanceEvaluation(object):
     def __init__(self, crop_box, neurite_type='all'):
         self.crop_box = crop_box
         self.neurite_type = neurite_type
+        self.dm_dist = 2.0
+        self.abs = False
+        self.soma_radius = 0
+        self.spacing = (1, 1, 4)
+
 
     def memory_safe_min_distances(self, voxels1, voxels2, num_thresh=50000):
         # verified
@@ -125,19 +130,22 @@ class DistanceEvaluation(object):
 
         for key in dist_results:
             if key == 'DSA':
-                dists1_ = dists1[dists1 > 2.0]
-                dists2_ = dists2[dists2 > 2.0]
+                dists1_ = dists1[dists1 > self.dm_dist]
+                dists2_ = dists2[dists2 > self.dm_dist]
                 if dists1_.shape[0] == 0:
                     dists1_ = np.array([0.])
                 if dists2_.shape[0] == 0:
                     dists2_ = np.array([0.])
             elif key == 'PDS':
-                dists1_ = (dists1 > 2.0).astype(np.float32)
-                dists2_ = (dists2 > 2.0).astype(np.float32)
+                dists1_ = (dists1 > self.dm_dist).astype(np.float32)
+                dists2_ = (dists2 > self.dm_dist).astype(np.float32)
             elif key == 'ESA':
                 dists1_ = dists1
                 dists2_ = dists2
-            dist_results[key] = (dists1_.mean(), dists2_.mean(), (dists1_.mean() + dists2_.mean()) / 2.)
+            if self.abs:
+                dist_results[key] = (dists1_.sum(), dists2_.sum(), (dists1_.sum() + dists2_.sum()) / 2.)
+            else:
+                dist_results[key] = (dists1_.mean(), dists2_.mean(), (dists1_.mean() + dists2_.mean()) / 2.)
         return dist_results
 
     def calc_DIADEM(self, swc_file1, swc_file2, jar_path='/home/lyf/Softwares/packages/Diadem/DiademMetric.jar'):
@@ -179,7 +187,17 @@ class DistanceEvaluation(object):
             # to successive voxels
             voxels1 = tree_to_voxels(tree1, self.crop_box)
             voxels2 = tree_to_voxels(tree2, self.crop_box)
+            dist_t = self.calc_DMs(voxels1, voxels2)
+            print(dist_t)
+            if self.soma_radius > 0:
+                soma1 = [i for i in tree1 if i[6] == -1]
+                soma1 = soma1[0][2:5]
+                soma2 = [i for i in tree2 if i[6] == -1]
+                soma2 = soma2[0][2:5]
+                voxels1 = voxels1[np.linalg.norm((voxels1 - soma1) * self.spacing, axis=-1) > self.soma_radius]
+                voxels2 = voxels2[np.linalg.norm((voxels2 - soma2) * self.spacing, axis=-1) > self.soma_radius]
             dist = self.calc_DMs(voxels1, voxels2)
+            print(dist)
         elif dist_type == 'DIADEM':
             dist = self.calc_DIADEM(swc_file1, swc_file2)
         else:

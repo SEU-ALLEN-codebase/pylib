@@ -128,10 +128,42 @@ def is_in_box(x, y, z, imgshape):
     return True
 
 
-def trim_swc(tree_orig, imgshape, keep_candidate_points=True):
+def prune(tree: list, ind_set: set):
+    """
+    prune all nodes given by ind_set in morph
+    """
+    child_dict = get_child_dict(tree)
+    index_dict = get_index_dict(tree)
+    tree = deepcopy(tree)
+    for i in ind_set:
+        q = []
+        ind = index_dict[i]
+        if tree[ind] is None:
+            continue
+        tree[ind] = None
+        if i in child_dict:
+            q.extend(child_dict[i])
+        while len(q) > 0:
+            head = q.pop(0)
+            ind = index_dict[head]
+            if tree[ind] is None:
+                continue
+            tree[ind] = None
+            if head in child_dict:
+                q.extend(child_dict[head])
+    return [t for t in tree if t is not None]
+
+
+def trim_swc(tree_orig, imgshape, keep_candidate_points=True, bfs=True):
     """
     Trim the out-of-box and non_connecting leaves
     """
+    if bfs:
+        ib = set(t[0] for t in tree_orig if is_in_box(*t[2:5], imgshape))
+        if keep_candidate_points:
+            child_dict = get_child_dict(tree_orig)
+            ib = ib.union(*(child_dict[i] for i in ib if i in child_dict))
+        return prune(tree_orig, set(t[0] for t in tree_orig) - ib)
 
     def traverse_leaves(idx, child_dict, good_points, cand_pints, pos_dict):
         leaf = pos_dict[idx]
