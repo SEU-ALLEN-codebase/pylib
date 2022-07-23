@@ -95,30 +95,6 @@ def get_anchors(morph: Morphology, ind: list, dist: float, spacing=(1, 1, 4), ep
     return center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch
 
 
-def prune(morph: Morphology, ind_set: set):
-    """
-    prune all nodes given by ind_set in morph
-    """
-    tree = morph.tree.copy()
-    for i in ind_set:
-        q = []
-        ind = morph.index_dict[i]
-        if tree[ind] is None:
-            continue
-        tree[ind] = None
-        if i in morph.child_dict:
-            q.extend(morph.child_dict[i])
-        while len(q) > 0:
-            head = q.pop(0)
-            ind = morph.index_dict[head]
-            if tree[ind] is None:
-                continue
-            tree[ind] = None
-            if head in morph.child_dict:
-                q.extend(morph.child_dict[head])
-    return [t for t in tree if t is not None]
-
-
 def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spacing=(1, 1, 4)):
     """
     interpolate based on the coordinated point list given,
@@ -207,7 +183,7 @@ def crossing_prune(args):
                 j = jj
                 jj = morph.pos_dict[j][6]
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        swc_handler.write_swc(prune(morph, rm_ind), save_path)
+        swc_handler.write_swc(swc_handler.prune(morph, rm_ind), save_path)
     except Exception as e:
         print(str(e))
         print("The above error occurred in crossing prune. Proceed anyway: " + swc_path)
@@ -228,7 +204,7 @@ def branch_prune(args):
             img = img[0]
         awry_node = set()
         cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
-        for n in morph.bifurcation + morph.multifurcation:
+        for n in morph.bifurcation | morph.multifurcation:
             if np.linalg.norm((morph.pos_dict[n][2:5] - cs) * spacing) <= soma_radius:
                 continue
             # branch, no soma, away from soma
@@ -249,10 +225,10 @@ def branch_prune(args):
                                       | (np.array(gray_pv) < gray_pvalue)
                                       | (np.array(radius_pv) < radius_pvalue)])
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        swc_handler.write_swc(prune(morph, awry_node), save_path)
+        swc_handler.write_swc(swc_handler.prune(morph, awry_node), save_path)
     except Exception as e:
         print(str(e))
-        print("The above error occurred in soma limit filter. Proceed anyway: " + swc_path)
+        print("The above error occurred in branch prune. Proceed anyway: " + swc_path)
         return False
 
 
@@ -411,6 +387,7 @@ class CLI200k:
                     assert len(swc) == len(img) > 0
                     self.swc_files.extend(swc)
                     self.img_files.extend(img)
+        assert len(self.swc_files) > 0
         self.root = os.path.commonpath([os.path.dirname(f) for f in self.swc_files])
         if self.output_dir is not None and self.root == "":
             print('warning: no common dir for all the swc, will save to the original folder.')
