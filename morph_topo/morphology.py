@@ -90,7 +90,7 @@ class AbstractTree(object):
 
     def get_distances_to_soma(self, spacing=(1, 1, 4)):
         """
-        distance to soma for all nodes
+        euclidean distance to soma for all nodes
         """
         c_soma = np.array(self.pos_dict[self.idx_soma][2:5])
         coords = np.array([node[2:5] for node in self.tree])
@@ -159,6 +159,14 @@ class AbstractTree(object):
         """
         # in parallel mode
         coords = np.array([leaf[2:5] for leaf in self.tree])
+        p_coords = []
+        """
+        for leaf in self.tree:
+            if leaf[-1] != self.p_soma:
+                p_coords.append(self.pos_dict[leaf[-1]][2:5])
+            else:
+                p_coords.append(self.pos_dict[self.idx_soma][2:5])
+        """
         p_coords = np.array([self.pos_dict[leaf[-1]][2:5] if leaf[-1] != self.p_soma else self.pos_dict[self.idx_soma][2:5] for leaf in self.tree])
         indices = [leaf[0] for leaf in self.tree]
         vectors = coords - p_coords
@@ -206,7 +214,7 @@ class Morphology(AbstractTree):
         """
         estimate the path length for each node
         :params path_dict:  node-to-soma dict or tip-to-soma dict, values is all parent index
-        :params frag_lengths:   fragment length dict
+        :params frag_lengths[list/array]:   fragment lengths
         """
         plen_dict = {}
         for idx, pidxs in path_dict.items():
@@ -218,6 +226,8 @@ class Morphology(AbstractTree):
     def calc_seg_path_lengths(self, seg_dict, frag_lengths_dict):
         """
         segmental path length
+        output: dictionary of segmental index -> seg_length. the segmental index are
+                the end point of a segment
         """
         path_dists = {}
         path_dists[self.idx_soma] = 0 
