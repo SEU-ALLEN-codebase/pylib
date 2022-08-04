@@ -145,8 +145,8 @@ class AbstractTree(object):
         for tip in self.tips:
             path = [tip]
             leaf = self.pos_dict[tip]
-            while leaf[-1] in self.pos_dict:
-                pid = leaf[-1]
+            while leaf[6] in self.pos_dict:
+                pid = leaf[6]
                 path.append(pid)
                 leaf = self.pos_dict[pid]
             paths[tip] = path
