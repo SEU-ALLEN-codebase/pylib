@@ -183,7 +183,7 @@ def crossing_prune(args):
                 j = jj
                 jj = morph.pos_dict[j][6]
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        swc_handler.write_swc(swc_handler.prune(morph, rm_ind), save_path)
+        swc_handler.write_swc(swc_handler.prune(morph.tree, rm_ind), save_path)
     except Exception as e:
         print(str(e))
         print("The above error occurred in crossing prune. Proceed anyway: " + swc_path)
@@ -225,7 +225,7 @@ def branch_prune(args):
                                       | (np.array(gray_pv) < gray_pvalue)
                                       | (np.array(radius_pv) < radius_pvalue)])
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        swc_handler.write_swc(swc_handler.prune(morph, awry_node), save_path)
+        swc_handler.write_swc(swc_handler.prune(morph.tree, awry_node), save_path)
     except Exception as e:
         print(str(e))
         print("The above error occurred in branch prune. Proceed anyway: " + swc_path)
@@ -318,13 +318,26 @@ def node_limit_filter(args):
 
 
 def save_path_gen(paths: list, in_dir: str, out_dir: str, suffix: str):
-    out = [f.split('.swc')[0] + suffix + '.swc' for f in paths]
+    out = [(f.split('.swc' if f.endswith('.swc') else '.eswc')[0]) + suffix + '.swc' for f in paths]
     if out_dir is None:
         if suffix == "":
             print('warning: replacing the input or the intermediate files.')
     else:
         out = [os.path.join(out_dir, os.path.relpath(f, in_dir)) for f in out]
     return out
+
+
+def remove_disconnected(args):
+    swc_path, save_path, anchor = args
+    try:
+        t = swc_handler.parse_swc(swc_path)
+        t = swc_handler.rm_disconnected(t, anchor)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        swc_handler.write_swc(t, save_path)
+    except Exception as e:
+        print(str(e))
+        print("The above error occurred in remove disconnected. Proceed anyway: " + swc_path)
+        return False
 
 
 class CLI200k:
@@ -461,6 +474,15 @@ class CLI200k:
             self.img_files = list(compress(self.img_files, bool_list))
             print('swc soma number filtering finished.')
             print("remaining number of swc: {}".format(len(self.swc_files)))
+        return self
+
+    def remove_disconnected(self, anchor=1, suffix="_rm_disc"):
+        swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            pool.map(remove_disconnected, [(*paths, anchor) for paths in zip(self.swc_files, swc_saves)])
+        self.swc_files = swc_saves
+        self.root = self.output_dir
+        print('remove disconnected done.')
         return self
 
     def crossing_prune(self, anchor_dist=15, dist_thr=5, suffix="_xpruned"):
