@@ -494,7 +494,9 @@ class CLI200k:
     def remove_disconnected(self, center=(64,64,32), suffix="_rm_disc"):
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            bool_list = pool.map(remove_disconnected, [(*paths, center) for paths in zip(self.swc_files, swc_saves)])
+            bool_list = list(
+                pool.map(remove_disconnected, [(*paths, center) for paths in zip(self.swc_files, swc_saves)])
+            )
         self.swc_files = list(compress(swc_saves, bool_list))
         self.img_files = list(compress(self.img_files, bool_list))
         self.root = self.output_dir
@@ -504,11 +506,13 @@ class CLI200k:
     def crossing_prune(self, anchor_dist=15, dist_thr=5, suffix="_xpruned"):
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            bool_list = pool.map(crossing_prune,
-                     [(*paths, anchor_dist, self.soma_radius, dist_thr,
-                       self.spacing, self.sampling, self.pix_win_radius)
-                      for paths in zip(self.swc_files, self.img_files, swc_saves)],
-                     chunksize=self.chunk)
+            bool_list = list(
+                pool.map(crossing_prune,
+                         [(*paths, anchor_dist, self.soma_radius, dist_thr,
+                           self.spacing, self.sampling, self.pix_win_radius)
+                          for paths in zip(self.swc_files, self.img_files, swc_saves)],
+                         chunksize=self.chunk)
+            )
             # self.trees = list(
             #     pool.map(crossing_prune,
             #              [(tree, img_path, anchor_dist, self.soma_radius, dist_thr,
@@ -525,11 +529,13 @@ class CLI200k:
     def branch_prune(self, angle_thr=90, gray_pvalue=0.01, radius_pvalue=0.01, anchor_dist=15, suffix="_ypruned"):
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            bool_list = pool.map(branch_prune,
-                     [(*paths, angle_thr, gray_pvalue, radius_pvalue, anchor_dist,
-                       self.soma_radius, self.spacing, self.sampling, self.pix_win_radius)
-                      for paths in zip(self.swc_files, self.img_files, swc_saves)],
-                     chunksize=self.chunk)
+            bool_list = list(
+                pool.map(branch_prune,
+                         [(*paths, angle_thr, gray_pvalue, radius_pvalue, anchor_dist,
+                           self.soma_radius, self.spacing, self.sampling, self.pix_win_radius)
+                          for paths in zip(self.swc_files, self.img_files, swc_saves)],
+                         chunksize=self.chunk)
+            )
         # with ProcessPoolExecutor(max_workers=self.jobs) as pool:
         #     self.trees = list(
         #         pool.map(branch_prune,
