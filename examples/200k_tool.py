@@ -14,7 +14,7 @@ from scipy.stats import ttest_ind, ttest_ind_from_stats
 from sklearn.cluster import DBSCAN
 import SimpleITK as sitk
 
-from file_io import load_image, save_markers
+from file_io import load_image
 import swc_handler
 from neuron_quality.find_break_crossing import CrossingFinder
 from morph_topo.morphology import Morphology
@@ -248,9 +248,11 @@ def soma_limit_filter_radius(args):
             return min_radius_keep
         pass_r = soma_r * pass_rate
         db = DBSCAN(eps=eps, min_samples=1)
-        db.fit([t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing))
+        dt = [t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing)
+        labs = db.fit_predict(dt)
+        cluster = [dt[np.where(labs == l)].mean(axis=0) for l in np.unique(labs) if l != -1]
         ct = morph.pos_dict[morph.idx_soma][2:5] * np.array(spacing)
-        outer_soma = [p for p in db.components_ if np.linalg.norm(p - ct) > soma_radius]
+        outer_soma = [p for p in cluster if np.linalg.norm(p - ct) > soma_radius]
         return len(outer_soma) <= max_count - 1
     except Exception as e:
         print(str(e))
@@ -357,7 +359,7 @@ class CLI200k:
     """
 
     def __init__(self, swc=None, img=None, ano=None, output_dir=None,
-                 jobs=1, chunk_size=1000, spacing=(1, 1, 3), soma_radius=15, sampling=10, pix_win_radius=1):
+                 jobs=1, chunk_size=1000, spacing=(1, 1, 2), soma_radius=15, sampling=10, pix_win_radius=1):
         """
         The script allows 3 input manners for swc and img files, which can work in parallel.
 
