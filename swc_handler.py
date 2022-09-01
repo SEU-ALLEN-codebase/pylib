@@ -127,6 +127,17 @@ def is_in_box(x, y, z, imgshape):
         return False
     return True
 
+def is_in_bbox(x, y, z, zyxzyx):
+    """ 
+    zyxzyx is bbox in format of [(zmin, ymin, xmin), (zmax, ymax, xmax)]
+    """
+    (zmin, ymin, xmin), (zmax, ymax, xmax) = zyxzyx
+    if x < xmin or y < ymin or z < zmin or \
+        x > xmax or \
+        y > ymax or \
+        z > zmax:
+        return False
+    return True
 
 def prune(tree: list, ind_set: set):
     """
@@ -308,6 +319,23 @@ def scale_swc(swc_file, scale):
         node = (idx, type_, x, y, z, r, p)
         new_tree.append(node)
     return new_tree
+
+def crop_tree_by_bbox(morph, bbox, keep_candidate_points=True):
+    """ 
+    Crop swc by trim all nodes out-of-bbox. This function differs from `trim_out_of_box` it does
+    not assume center cropping
+    """
+    tree = []
+    for i, leaf in enumerate(morph.tree):
+        idx, type_, x, y, z, r, p = leaf[:7]
+        ib = is_in_bbox(x,y,z,bbox) 
+        if ib: 
+            tree.append(leaf)
+            if keep_candidate_points and (idx in morph.child_dict):
+                for ch_leaf in morph.child_dict[idx]:
+                    if not is_in_bbox(*morph.pos_dict[ch_leaf][2:5], bbox):
+                        tree.append(morph.pos_dict[ch_leaf])
+    return tree
 
 
 def tree_to_voxels(tree, crop_box):
