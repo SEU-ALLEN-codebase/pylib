@@ -68,9 +68,10 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
         dcur = np.linalg.norm((cc - ci) * spacing)
         assert (dcur - dd >= 0)
         pt_a = ci + (cc - ci) * (dcur - dd) / (dcur + epsilon)
-        r_a = ri + (rr - ri) * (dcur - dd) / (dcur + epsilon)
+        if radius:
+            r_a = ri + (rr - ri) * (dcur - dd) / (dcur + epsilon)
+            rad.append(r_a)
         pts.append(pt_a)
-        rad.append(r_a)
 
     if return_center_point:
         pt_a = np.mean(pts, axis=0)
