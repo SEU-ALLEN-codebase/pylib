@@ -160,7 +160,7 @@ def crossing_prune(args):
             radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
             radius_ch_med = [np.median(radius_sampling(pts, rad, sampling, spacing=spacing))
                              for pts, rad in zip(pts_ch, rad_ch)]
-            radius_diff = [abs(r - radius_p_med) + 0.1 for r in radius_ch_med]
+            radius_diff = [abs(r - radius_p_med) + 1 for r in radius_ch_med]
             # to = np.argmin(abs(angles - 180))     # used to pick the smallest angle difference for them
             score = [a * g * r for a, g, r in zip(angle_diff, gray_diff, radius_diff)]
             return com_node, protrude, score
@@ -271,7 +271,6 @@ def soma_limit_filter_gray(args):
         if len(img.shape) == 4:
             img = img[0]
         morph = Morphology(tree)
-        dist = morph.get_distances_to_soma(spacing)
 
         def stat(ct):
             ind = [np.clip([a - b, a + b + 1], 0, c - 1) for a, b, c in zip(ct, win_radius, img.shape[-1:-4:-1])]
@@ -350,6 +349,79 @@ def remove_disconnected(args):
     except Exception as e:
         print(e)
         print("The above error occurred in remove disconnected. Proceed anyway: " + swc_path)
+        return False
+
+
+def soma_prune(args):
+    swc_path, img_path, save_path, pass_rate, soma_radius, win_radius, \
+        spacing, min_radius, anchor_dist, sampling, pix_win_radius = args
+    try:
+        img = load_image(img_path)
+        if len(img.shape) == 4:
+            img = img[0]
+        tree = swc_handler.parse_swc(swc_path)
+        morph = Morphology(tree)
+        dist = morph.get_distances_to_soma(spacing)
+        soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
+        pass_r = max(min_radius, soma_r) * pass_rate
+
+        def stat(ct):
+            ind = [np.clip([a - b, a + b + 1], 0, c - 1) for a, b, c in zip(ct, win_radius, img.shape[-1:-4:-1])]
+            ind = np.array(ind, dtype=int)
+            return img[ind[2][0]:ind[2][1], ind[1][0]:ind[1][1], ind[0][0]:ind[0][1]].flatten()
+
+        ct = morph.pos_dict[morph.idx_soma][2:5]
+        soma_stat = stat(ct)
+        if soma_stat.size <= np.dot(win_radius, (1, 1, 1)):
+            return False
+        pass_gray = soma_stat.mean() * pass_rate
+        awry_node = [(t[0], stat(t[2:5]).mean(), t[2:5]) for t, d in zip(tree, dist)
+                     if d > soma_radius and (t[5] > pass_r or stat(t[2:5]).mean() > pass_gray)]
+        rm_ind = set()
+        print(awry_node)
+        cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
+        for i in awry_node:
+            min_score = None
+            min_pt = None
+            pts = [morph.pos_dict[i]]
+            skip = False
+            while pts[-1][6] != -1:
+                if pts[-1] in rm_ind:
+                    skip = True
+                    break
+                pts.append(morph.pos_dict[pts[-1][6]])
+            if skip:
+                continue
+            tmp_morph = Morphology(pts)
+            for j, p in enumerate(pts):
+                if j == 0 or j == len(pts) - 1 or np.linalg.norm((p[2:5] - cs) * spacing) <= soma_radius:
+                    continue
+                with HidePrint():
+                    center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
+                        get_anchors(tmp_morph, [p[0]], anchor_dist, spacing)
+                angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
+                angle_diff = abs(angles[0] - 180) + 1
+                # gray_p_med = np.median(gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing))
+                # gray_ch_med = np.median(gray_sampling(pts_ch[0], img, sampling, pix_win_radius, spacing=spacing))
+                # gray_diff = abs(gray_ch_med - gray_p_med) + 1
+                # radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
+                # radius_ch_med = np.median(radius_sampling(pts_ch[0], rad_ch[0], sampling, spacing=spacing))
+                # radius_diff = abs(radius_ch_med - radius_p_med) + 1
+                score = angle_diff
+                if min_pt is None or min_score > score:
+                    min_score = score
+                    min_pt = j
+            if min_pt is not None:
+                if len(morph.child_dict[pts[min_pt][0]]) > 1:
+                    min_pt -= 1
+                rm_ind.add(pts[min_pt][0])
+
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        swc_handler.write_swc(swc_handler.prune(morph.tree, rm_ind), save_path)
+        return True
+    except Exception as e:
+        print(str(e))
+        print("The above error occurred in soma prune. Proceed anyway: " + swc_path)
         return False
 
 
@@ -503,6 +575,22 @@ class CLI200k:
         self.img_files = list(compress(self.img_files, bool_list))
         self.root = self.output_dir
         print('remove disconnected done.')
+        return self
+
+    def soma_prune(self, pass_rate=0.5, min_radius=3, anchor_dist=15, win_radius=(6, 6, 4), suffix="_spruned"):
+        swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            bool_list = list(
+                pool.map(soma_prune,
+                         [(*paths, pass_rate, self.soma_radius, win_radius, self.spacing, min_radius,
+                           anchor_dist, self.sampling, self.pix_win_radius)
+                          for paths in zip(self.swc_files, self.img_files, swc_saves)],
+                         chunksize=self.chunk)
+            )
+        self.swc_files = list(compress(swc_saves, bool_list))
+        self.img_files = list(compress(self.img_files, bool_list))
+        self.root = self.output_dir
+        print('soma prune done.')
         return self
 
     def crossing_prune(self, anchor_dist=15, dist_thr=5, suffix="_xpruned"):
