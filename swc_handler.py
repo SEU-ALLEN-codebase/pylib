@@ -378,6 +378,19 @@ def tree_to_voxels(tree, crop_box):
     # remove duplicate points
     voxels = np.array(list(set(voxels)), dtype=np.float32)
     return voxels
-        
 
 
+def rm_disconnected(tree: list, anchor: int):
+    roots = [t[0] for t in tree if t[6] == -1]
+    ch = get_child_dict(tree)
+    idx = get_index_dict(tree)
+    flag = np.zeros(len(tree), dtype=int)
+    for r in roots:
+        q = [r]
+        while len(q) > 0:
+            head = q.pop(0)
+            flag[idx[head]] = r
+            if head in ch:
+                q.extend(ch[head])
+    ind = flag[idx[anchor]]
+    return prune(tree, set(t[0] for t, f in zip(tree, flag) if f != ind))

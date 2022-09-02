@@ -14,7 +14,7 @@ from scipy.stats import ttest_ind, ttest_ind_from_stats
 from sklearn.cluster import DBSCAN
 import SimpleITK as sitk
 
-from file_io import load_image, save_markers
+from file_io import load_image
 import swc_handler
 from neuron_quality.find_break_crossing import CrossingFinder
 from morph_topo.morphology import Morphology
@@ -183,7 +183,8 @@ def crossing_prune(args):
                 j = jj
                 jj = morph.pos_dict[j][6]
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        swc_handler.write_swc(swc_handler.prune(morph, rm_ind), save_path)
+        swc_handler.write_swc(swc_handler.prune(morph.tree, rm_ind), save_path)
+        return True
     except Exception as e:
         print(str(e))
         print("The above error occurred in crossing prune. Proceed anyway: " + swc_path)
@@ -225,7 +226,8 @@ def branch_prune(args):
                                       | (np.array(gray_pv) < gray_pvalue)
                                       | (np.array(radius_pv) < radius_pvalue)])
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        swc_handler.write_swc(swc_handler.prune(morph, awry_node), save_path)
+        swc_handler.write_swc(swc_handler.prune(morph.tree, awry_node), save_path)
+        return True
     except Exception as e:
         print(str(e))
         print("The above error occurred in branch prune. Proceed anyway: " + swc_path)
@@ -246,9 +248,11 @@ def soma_limit_filter_radius(args):
             return min_radius_keep
         pass_r = soma_r * pass_rate
         db = DBSCAN(eps=eps, min_samples=1)
-        db.fit([t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing))
+        dt = [t[2:5] for t in tree if t[5] >= pass_r] * np.array(spacing)
+        labs = db.fit_predict(dt)
+        cluster = [dt[np.where(labs == l)].mean(axis=0) for l in np.unique(labs) if l != -1]
         ct = morph.pos_dict[morph.idx_soma][2:5] * np.array(spacing)
-        outer_soma = [p for p in db.components_ if np.linalg.norm(p - ct) > soma_radius]
+        outer_soma = [p for p in cluster if np.linalg.norm(p - ct) > soma_radius]
         return len(outer_soma) <= max_count - 1
     except Exception as e:
         print(str(e))
@@ -318,7 +322,7 @@ def node_limit_filter(args):
 
 
 def save_path_gen(paths: list, in_dir: str, out_dir: str, suffix: str):
-    out = [f.split('.swc')[0] + suffix + '.swc' for f in paths]
+    out = [(f.split('.swc' if f.endswith('.swc') else '.eswc')[0]) + suffix + '.swc' for f in paths]
     if out_dir is None:
         if suffix == "":
             print('warning: replacing the input or the intermediate files.')
@@ -327,13 +331,35 @@ def save_path_gen(paths: list, in_dir: str, out_dir: str, suffix: str):
     return out
 
 
+def remove_disconnected(args):
+    swc_path, save_path, center = args
+    try:
+        t = swc_handler.parse_swc(swc_path)
+        roots = [t for t in t if t[6] == -1]
+        min_r = None
+        min_dist = None
+        for r in roots:
+            dist = np.linalg.norm(np.array(r[2:5]) - center)
+            if min_r is None or dist < min_dist:
+                min_dist = dist
+                min_r = r
+        t = swc_handler.rm_disconnected(t, min_r[0])
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        swc_handler.write_swc(t, save_path)
+        return True
+    except Exception as e:
+        print(e)
+        print("The above error occurred in remove disconnected. Proceed anyway: " + swc_path)
+        return False
+
+
 class CLI200k:
     """
     BICCN 200K SWC post-processing CLI tools
     """
 
     def __init__(self, swc=None, img=None, ano=None, output_dir=None,
-                 jobs=1, chunk_size=1000, spacing=(1, 1, 3), soma_radius=15, sampling=10, pix_win_radius=1):
+                 jobs=1, chunk_size=1000, spacing=(1, 1, 2), soma_radius=15, sampling=10, pix_win_radius=1):
         """
         The script allows 3 input manners for swc and img files, which can work in parallel.
 
@@ -417,7 +443,7 @@ class CLI200k:
             print('remaining number of swc: {}'.format(len(self.swc_files)))
         return self
 
-    def soma_limit_filter_radius(self, max_count=3, min_radius=5, pass_rate=0.8, min_radius_keep=False, eps=10):
+    def soma_limit_filter_radius(self, max_count=3, min_radius=5, pass_rate=0.8, min_radius_keep=False, eps=10, invert=False):
         """
         filter swc to have a limited number of soma, based on soma radius
         """
@@ -434,13 +460,15 @@ class CLI200k:
             #              chunksize=self.chunk)
             # )
             # self.trees = list(compress(self.trees, bool_list))
+            if invert:
+                bool_list = [not b for b in bool_list]
             self.swc_files = list(compress(self.swc_files, bool_list))
             self.img_files = list(compress(self.img_files, bool_list))
             print('swc soma number filtering finished.')
             print("remaining number of swc: {}".format(len(self.swc_files)))
         return self
 
-    def soma_limit_filter_gray(self, min_radius=3, max_count=3, win_radius=(6, 6, 4), pass_rate=0.5, eps=10):
+    def soma_limit_filter_gray(self, min_radius=3, max_count=3, win_radius=(6, 6, 4), pass_rate=0.5, eps=10, invert=False):
         """
         filter swc to have a limited number of somas
         """
@@ -457,20 +485,36 @@ class CLI200k:
             #              chunksize=self.chunk)
             # )
             # self.trees = list(compress(self.trees, bool_list))
+            if invert:
+                bool_list = [not b for b in bool_list]
             self.swc_files = list(compress(self.swc_files, bool_list))
             self.img_files = list(compress(self.img_files, bool_list))
             print('swc soma number filtering finished.')
             print("remaining number of swc: {}".format(len(self.swc_files)))
         return self
 
+    def remove_disconnected(self, center=(64,64,32), suffix="_rm_disc"):
+        swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            bool_list = list(
+                pool.map(remove_disconnected, [(*paths, center) for paths in zip(self.swc_files, swc_saves)])
+            )
+        self.swc_files = list(compress(swc_saves, bool_list))
+        self.img_files = list(compress(self.img_files, bool_list))
+        self.root = self.output_dir
+        print('remove disconnected done.')
+        return self
+
     def crossing_prune(self, anchor_dist=15, dist_thr=5, suffix="_xpruned"):
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            pool.map(crossing_prune,
-                     [(*paths, anchor_dist, self.soma_radius, dist_thr,
-                       self.spacing, self.sampling, self.pix_win_radius)
-                      for paths in zip(self.swc_files, self.img_files, swc_saves)],
-                     chunksize=self.chunk)
+            bool_list = list(
+                pool.map(crossing_prune,
+                         [(*paths, anchor_dist, self.soma_radius, dist_thr,
+                           self.spacing, self.sampling, self.pix_win_radius)
+                          for paths in zip(self.swc_files, self.img_files, swc_saves)],
+                         chunksize=self.chunk)
+            )
             # self.trees = list(
             #     pool.map(crossing_prune,
             #              [(tree, img_path, anchor_dist, self.soma_radius, dist_thr,
@@ -478,7 +522,8 @@ class CLI200k:
             #               for tree, img_path in zip(self.trees, self.img_files)],
             #              chunksize=self.chunk)
             # )
-        self.swc_files = swc_saves
+        self.swc_files = list(compress(swc_saves, bool_list))
+        self.img_files = list(compress(self.img_files, bool_list))
         self.root = self.output_dir
         print('crossing prune done.')
         return self
@@ -486,11 +531,13 @@ class CLI200k:
     def branch_prune(self, angle_thr=90, gray_pvalue=0.01, radius_pvalue=0.01, anchor_dist=15, suffix="_ypruned"):
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-            pool.map(branch_prune,
-                     [(*paths, angle_thr, gray_pvalue, radius_pvalue, anchor_dist,
-                       self.soma_radius, self.spacing, self.sampling, self.pix_win_radius)
-                      for paths in zip(self.swc_files, self.img_files, swc_saves)],
-                     chunksize=self.chunk)
+            bool_list = list(
+                pool.map(branch_prune,
+                         [(*paths, angle_thr, gray_pvalue, radius_pvalue, anchor_dist,
+                           self.soma_radius, self.spacing, self.sampling, self.pix_win_radius)
+                          for paths in zip(self.swc_files, self.img_files, swc_saves)],
+                         chunksize=self.chunk)
+            )
         # with ProcessPoolExecutor(max_workers=self.jobs) as pool:
         #     self.trees = list(
         #         pool.map(branch_prune,
@@ -499,7 +546,8 @@ class CLI200k:
         #                   for tree, img_path in zip(self.trees, self.img_files)],
         #                  chunksize=self.chunk)
         #     )
-        self.swc_files = swc_saves
+        self.swc_files = list(compress(swc_saves, bool_list))
+        self.img_files = list(compress(self.img_files, bool_list))
         self.root = self.output_dir
         print('branch prune done.')
         return self
