@@ -365,20 +365,19 @@ def soma_prune(args):
         soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
         pass_r = max(min_radius, soma_r) * pass_rate
 
-        def stat(ct):
+        def stat(ct, win_radius):
             ind = [np.clip([a - b, a + b + 1], 0, c - 1) for a, b, c in zip(ct, win_radius, img.shape[-1:-4:-1])]
             ind = np.array(ind, dtype=int)
             return img[ind[2][0]:ind[2][1], ind[1][0]:ind[1][1], ind[0][0]:ind[0][1]].flatten()
 
         ct = morph.pos_dict[morph.idx_soma][2:5]
-        soma_stat = stat(ct)
+        soma_stat = stat(ct, win_radius)
         if soma_stat.size <= np.dot(win_radius, (1, 1, 1)):
             return False
         pass_gray = soma_stat.mean() * pass_rate
-        awry_node = [(t[0], stat(t[2:5]).mean(), t[2:5]) for t, d in zip(tree, dist)
+        awry_node = [t[0] for t, d in zip(tree, dist)
                      if d > soma_radius and (t[5] > pass_r or stat(t[2:5]).mean() > pass_gray)]
         rm_ind = set()
-        print(awry_node)
         cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
         for i in awry_node:
             min_score = None
@@ -401,13 +400,14 @@ def soma_prune(args):
                         get_anchors(tmp_morph, [p[0]], anchor_dist, spacing)
                 angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
                 angle_diff = abs(angles[0] - 180) + 1
-                # gray_p_med = np.median(gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing))
-                # gray_ch_med = np.median(gray_sampling(pts_ch[0], img, sampling, pix_win_radius, spacing=spacing))
-                # gray_diff = abs(gray_ch_med - gray_p_med) + 1
-                # radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
-                # radius_ch_med = np.median(radius_sampling(pts_ch[0], rad_ch[0], sampling, spacing=spacing))
-                # radius_diff = abs(radius_ch_med - radius_p_med) + 1
-                score = angle_diff
+                gray_p_med = np.median(gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing))
+                gray_ch_med = np.median(gray_sampling(pts_ch[0], img, sampling, pix_win_radius, spacing=spacing))
+                gray_diff = abs(gray_ch_med - gray_p_med) + 1
+                radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
+                radius_ch_med = np.median(radius_sampling(pts_ch[0], rad_ch[0], sampling, spacing=spacing))
+                radius_diff = abs(radius_ch_med - radius_p_med) + 1
+                strength = stat(p[2:5], [2, 2, 1]).mean()
+                score = angle_diff * gray_diff * radius_diff * strength
                 if min_pt is None or min_score > score:
                     min_score = score
                     min_pt = j
