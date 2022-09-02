@@ -90,7 +90,7 @@ class AbstractTree(object):
 
     def get_distances_to_soma(self, spacing=(1, 1, 4)):
         """
-        distance to soma for all nodes
+        euclidean distance to soma for all nodes
         """
         c_soma = np.array(self.pos_dict[self.idx_soma][2:5])
         coords = np.array([node[2:5] for node in self.tree])
@@ -145,8 +145,8 @@ class AbstractTree(object):
         for tip in self.tips:
             path = [tip]
             leaf = self.pos_dict[tip]
-            while leaf[-1] in self.pos_dict:
-                pid = leaf[-1]
+            while leaf[6] in self.pos_dict:
+                pid = leaf[6]
                 path.append(pid)
                 leaf = self.pos_dict[pid]
             paths[tip] = path
@@ -154,8 +154,19 @@ class AbstractTree(object):
         
 
     def calc_frag_lengths(self):
+        """
+        calculate all fragment lengths, that is the length between two successive points
+        """
         # in parallel mode
         coords = np.array([leaf[2:5] for leaf in self.tree])
+        p_coords = []
+        """
+        for leaf in self.tree:
+            if leaf[-1] != self.p_soma:
+                p_coords.append(self.pos_dict[leaf[-1]][2:5])
+            else:
+                p_coords.append(self.pos_dict[self.idx_soma][2:5])
+        """
         p_coords = np.array([self.pos_dict[leaf[-1]][2:5] if leaf[-1] != self.p_soma else self.pos_dict[self.idx_soma][2:5] for leaf in self.tree])
         indices = [leaf[0] for leaf in self.tree]
         vectors = coords - p_coords
@@ -178,6 +189,10 @@ class Morphology(AbstractTree):
         self.get_critical_points()
 
     def get_path_idx_dict(self):
+        """
+        Find path from each node to soma. DFS search
+        """
+
         def find_path_dfs(idx, path_dict, pos_dict, child_dict):
             pidx = pos_dict[idx][-1]
             
@@ -195,15 +210,25 @@ class Morphology(AbstractTree):
         find_path_dfs(self.idx_soma, path_dict, self.pos_dict, self.child_dict)
         return path_dict
 
-    def get_path_len_dict(self, path_dict, seg_lengths):
+    def get_path_len_dict(self, path_dict, frag_lengths):
+        """
+        estimate the path length for each node
+        :params path_dict:  node-to-soma dict or tip-to-soma dict, values is all parent index
+        :params frag_lengths[list/array]:   fragment lengths
+        """
         plen_dict = {}
         for idx, pidxs in path_dict.items():
             pindex = [self.index_dict[pidx] for pidx in pidxs]
-            plen = seg_lengths[pindex].sum()
+            plen = frag_lengths[pindex].sum()
             plen_dict[idx] = plen
         return plen_dict
 
     def calc_seg_path_lengths(self, seg_dict, frag_lengths_dict):
+        """
+        segmental path length
+        output: dictionary of segmental index -> seg_length. the segmental index are
+                the end point of a segment
+        """
         path_dists = {}
         path_dists[self.idx_soma] = 0 
         for seg_id, seg_nodes in seg_dict.items():

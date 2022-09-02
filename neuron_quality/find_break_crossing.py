@@ -17,7 +17,7 @@ from math_utils import calc_included_angles_from_coords, calc_included_angles_fr
 
 
 def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7,
-                           spacing=(1, 1, 4), stop_by_branch=True, only_tgt_pt=True, radius=False, pt_rad=None):
+                           spacing=(1., 1., 1.), stop_by_branch=True, only_tgt_pt=True, radius=False, pt_rad=None):
     """ 
     Find the point of exact `dist` to the start pt on tree structure. args are:
     - pt: the start point, [coordinate]
@@ -68,9 +68,10 @@ def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center
         dcur = np.linalg.norm((cc - ci) * spacing)
         assert (dcur - dd >= 0)
         pt_a = ci + (cc - ci) * (dcur - dd) / (dcur + epsilon)
-        r_a = ri + (rr - ri) * (dcur - dd) / (dcur + epsilon)
+        if radius:
+            r_a = ri + (rr - ri) * (dcur - dd) / (dcur + epsilon)
+            rad.append(r_a)
         pts.append(pt_a)
-        rad.append(r_a)
 
     if return_center_point:
         pt_a = np.mean(pts, axis=0)
