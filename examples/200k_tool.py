@@ -376,7 +376,7 @@ def soma_prune(args):
             return False
         pass_gray = soma_stat.mean() * pass_rate
         awry_node = [t[0] for t, d in zip(tree, dist)
-                     if d > soma_radius and (t[5] > pass_r or stat(t[2:5]).mean() > pass_gray)]
+                     if d > soma_radius and (t[5] > pass_r or stat(t[2:5], win_radius).mean() > pass_gray)]
         rm_ind = set()
         cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
         for i in awry_node:
@@ -392,8 +392,10 @@ def soma_prune(args):
             if skip:
                 continue
             tmp_morph = Morphology(pts)
+            scores = []
             for j, p in enumerate(pts):
                 if j == 0 or j == len(pts) - 1 or np.linalg.norm((p[2:5] - cs) * spacing) <= soma_radius:
+                    scores.append(None)
                     continue
                 with HidePrint():
                     center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
@@ -406,10 +408,22 @@ def soma_prune(args):
                 radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
                 radius_ch_med = np.median(radius_sampling(pts_ch[0], rad_ch[0], sampling, spacing=spacing))
                 radius_diff = abs(radius_ch_med - radius_p_med) + 1
-                strength = stat(p[2:5], [2, 2, 1]).mean()
-                score = angle_diff * gray_diff * radius_diff * strength
-                if min_pt is None or min_score > score:
-                    min_score = score
+                strength = stat(p[2:5], [2, 2, 1]).mean() + 1
+                scores.append(np.log(angle_diff * gray_diff * radius_diff * strength))
+            for j, s in enumerate(scores):
+                if s is None:
+                    continue
+                temp = s
+                nn = 1
+                if j > 0 and scores[j - 1] is not None:
+                    temp += scores[j - 1]
+                    nn += 1
+                if j < len(pts) - 1 and scores[j + 1] is not None:
+                    temp += scores[j + 1]
+                    nn += 1
+                temp /= nn
+                if min_pt is None or min_score > temp:
+                    min_score = temp
                     min_pt = j
             if min_pt is not None:
                 if len(morph.child_dict[pts[min_pt][0]]) > 1:
