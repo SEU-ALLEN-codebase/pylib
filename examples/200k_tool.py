@@ -427,7 +427,6 @@ def soma_prune(args):
                     cdf2[-1] += cdf2[-2]
             cdf1.reverse()
             k = 0
-            print(list(zip(cdf1, cdf2)))
             for a, b in zip(cdf1, cdf2):
                 if a < b:
                     break
