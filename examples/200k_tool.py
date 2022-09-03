@@ -382,59 +382,59 @@ def soma_prune(args):
         for i in awry_node:
             pts = [morph.pos_dict[i]]
             skip = False
+            cs_fake = np.array([pts[0][2:5]])
             while pts[-1][6] != -1:
                 if pts[-1][0] in rm_ind:
                     skip = True
                     break
                 pts.append(morph.pos_dict[pts[-1][6]])
-            if skip:
+            if skip or len(pts) < 3:
                 continue
             tmp_morph = Morphology(pts)
-            scores = []
+            gof1 = []
+            len1 = []
+            gof2 = []
+            len2 = []
+            gray2 = []
             for j, p in enumerate(pts):
                 if j == 0 or j == len(pts) - 1 or np.linalg.norm((p[2:5] - cs) * spacing) <= soma_radius:
-                    scores.append(None)
+                    gof1.append(0)
+                    len1.append(0)
+                    gof2.append(0)
+                    len2.append(0)
+                    gray2.append(0)
                     continue
                 with HidePrint():
                     center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
                         get_anchors(tmp_morph, [p[0]], anchor_dist, spacing)
-                angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=spacing)
-                angle_diff = abs(angles[0] - 180) + 1
-                gray_p_med = np.median(gray_sampling(pts_p, img, sampling, pix_win_radius, spacing=spacing))
-                gray_ch_med = np.median(gray_sampling(pts_ch[0], img, sampling, pix_win_radius, spacing=spacing))
-                gray_diff = max(gray_ch_med - gray_p_med, 0) + 1
-                radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
-                radius_ch_med = np.median(radius_sampling(pts_ch[0], rad_ch[0], sampling, spacing=spacing))
-                radius_diff = max(radius_ch_med - radius_p_med, 0) + 1
-                strength = stat(p[2:5], [2, 2, 1]).mean() + 1
-                if p[0] in morph.child_dict and len(morph.child_dict[p[0]]) > 1:
-                    strength *= 0.01
-                scores.append(np.log(angle_diff * gray_diff * radius_diff / strength))
-            max_score = None
-            max_pt = None
-            for j, s in enumerate(scores):
-                if s is None:
-                    continue
-                temp = s * 2
-                nn = 2
-                if j > 0 and scores[j - 1] is not None:
-                    temp += scores[j - 1]
-                    nn += 1
-                if j < len(pts) - 1 and scores[j + 1] is not None:
-                    temp += scores[j + 1]
-                    nn += 1
-                temp /= nn
-                if max_pt is None or max_score < temp:
-                    max_score = temp
-                    max_pt = j
-            print(scores)
-            print(pts)
-            print(max_score, max_pt, pts[max_pt])
-            if max_pt is not None:
-                if len(morph.child_dict[pts[max_pt][0]]) > 1:
-                    max_pt -= 1
-                rm_ind.add(pts[max_pt][0])
-        print(rm_ind)
+                gof1.append(anchor_angles(center, cs, np.array(anchor_ch), spacing=spacing)[0])
+                len1.append(np.linalg.norm((np.array(p[2:5]) - pts[j - 1][2:5]) * spacing))
+                gof2.append(anchor_angles(center, anchor_p, cs_fake, spacing=spacing)[0])
+                len2.append(np.linalg.norm((np.array(p[2:5]) - pts[j + 1][2:5]) * spacing))
+                gray2.append(np.exp(10 * (1 - stat(p[2:5], [2, 2, 1]).mean() / 255) ** 2))
+            cdf1 = [] # soma to fake
+            cdf2 = [] # fake to soma
+            gof1.reverse()
+            len1.reverse()
+            gray1 = gray2.copy()
+            gray1.reverse()
+            for a, b, c, d, e, f in zip(gof1, gof2, len1, len2, gray1, gray2):
+                cdf1.append(a * c * e)
+                if len(cdf1) > 1:
+                    cdf1[-1] += cdf1[-2]
+                cdf2.append(b * d * f)
+                if len(cdf2) > 1:
+                    cdf2[-1] += cdf2[-2]
+            cdf1.reverse()
+            k = 0
+            print(list(zip(cdf1, cdf2)))
+            for a, b in zip(cdf1, cdf2):
+                if a < b:
+                    break
+                k += 1
+            if len(morph.child_dict[pts[k][0]]) > 1:
+                k -= 1
+            rm_ind.add(pts[k][0])
 
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         swc_handler.write_swc(swc_handler.prune(morph.tree, rm_ind), save_path)
