@@ -10,9 +10,8 @@ import numpy as np
 from scipy.interpolate import pchip_interpolate, interp1d
 import fire
 from concurrent.futures import ProcessPoolExecutor
-from scipy.stats import ttest_ind, ttest_ind_from_stats
+from scipy.stats import ttest_ind
 from sklearn.cluster import DBSCAN
-import SimpleITK as sitk
 
 from file_io import load_image
 import swc_handler
