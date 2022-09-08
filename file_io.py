@@ -15,14 +15,14 @@ from v3d.io import *
 from pathlib import Path
 
 
-def load_image(img_file):
+def load_image(img_file, flip_tif=True):
     img_file = Path(img_file)
     if img_file.suffix in ['.v3draw', '.V3DRAW']:
         return load_v3draw(img_file)
     if img_file.suffix in ['.v3dpbd', '.V3DPBD']:
         return PBD().load_image(img_file)
     img = sitk.GetArrayFromImage(sitk.ReadImage(str(img_file)))
-    if img_file.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
+    if flip_tif and img_file.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
         img = np.flip(img, axis=-2)
     return img
 

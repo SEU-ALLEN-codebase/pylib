@@ -97,7 +97,7 @@ class TiledVolume(VirtualVolume):
                             if "NULL.tif" in str(slice_fullpath):
                                 continue
 
-                            img = load_image(slice_fullpath)
+                            img = load_image(slice_fullpath, flip_tif=False)
                             if len(img.shape) == 4:
                                 img = img[0]
                             buffer[bd0:bd0 + sd1 - sd0, bv0:bv0 + sv1 - sv0, bh0:bh0 + sh1 - sh0] = img[sd0:sd1,
