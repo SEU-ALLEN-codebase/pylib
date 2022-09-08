@@ -11,26 +11,29 @@
 #================================================================
 import SimpleITK as sitk
 import pickle
-import numpy as np
 from v3d.io import *
+from pathlib import Path
 
-
-def load_image(img_file: str, vaa3d="vaa3d", temp_dir=None):
-    if img_file.lower().endswith(".v3draw"):
+def load_image(img_file):
+    img_file = Path(img_file)
+    if img_file.suffix in ['.v3draw', '.V3DRAW']:
         return load_v3draw(img_file)
-    if img_file.lower().endswith(".v3dpbd"):
+    if img_file.suffix in ['.v3dpbd', '.V3DPBD']:
         return PBD().load_image(img_file)
     img = sitk.GetArrayFromImage(sitk.ReadImage(img_file))
-    if img_file.lower().endswith(".tif") or img_file.lower().endswith(".tiff"):
+    if img_file.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
         img = np.flip(img, axis=-2)
     return img
 
 
-def save_image(outfile: str, img: np.ndarray):
-    if outfile.lower().endswith(".v3draw"):
+def save_image(outfile, img: np.ndarray):
+    outfile = Path(outfile)
+    if outfile.suffix in ['.v3draw', '.V3DRAW']:
         save_v3draw(img, outfile)
-    elif outfile.lower().endswith(".tif") or outfile.lower().endswith(".tiff"):
+    elif outfile.suffix in ['.v3dpbd', '.V3DPBD']:
         sitk.WriteImage(sitk.GetImageFromArray(np.flip(img, axis=-2)), outfile)
+    elif outfile.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
+        img = np.flip(img, axis=-2)
     else:
         sitk.WriteImage(sitk.GetImageFromArray(img), outfile)
     return True
