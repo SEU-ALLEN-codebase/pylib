@@ -30,10 +30,8 @@ def save_image(outfile, img: np.ndarray):
     outfile = Path(outfile)
     if outfile.suffix in ['.v3draw', '.V3DRAW']:
         save_v3draw(img, outfile)
-    elif outfile.suffix in ['.v3dpbd', '.V3DPBD']:
-        sitk.WriteImage(sitk.GetImageFromArray(np.flip(img, axis=-2)), outfile)
     elif outfile.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
-        img = np.flip(img, axis=-2)
+        sitk.WriteImage(sitk.GetImageFromArray(np.flip(img, axis=-2)), outfile)
     else:
         sitk.WriteImage(sitk.GetImageFromArray(img), outfile)
     return True

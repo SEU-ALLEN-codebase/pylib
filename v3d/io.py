@@ -4,7 +4,7 @@ import numpy as np
 import sys
 
 
-def load_v3draw(path: str):
+def load_v3draw(path):
     """
     by Zuohan Zhao
     from basic_c_fun/stackutils.cpp
@@ -46,7 +46,7 @@ def load_v3draw(path: str):
         return img.reshape(sz[-1:-5:-1])
 
 
-def save_v3draw(img: np.ndarray, path: str):
+def save_v3draw(img: np.ndarray, path):
     """
     by Zuohan Zhao
     from basic_c_fun/stackutils.cpp
