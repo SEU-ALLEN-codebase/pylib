@@ -14,13 +14,14 @@ import pickle
 from v3d.io import *
 from pathlib import Path
 
+
 def load_image(img_file):
     img_file = Path(img_file)
     if img_file.suffix in ['.v3draw', '.V3DRAW']:
         return load_v3draw(img_file)
     if img_file.suffix in ['.v3dpbd', '.V3DPBD']:
         return PBD().load_image(img_file)
-    img = sitk.GetArrayFromImage(sitk.ReadImage(img_file))
+    img = sitk.GetArrayFromImage(sitk.ReadImage(str(img_file)))
     if img_file.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
         img = np.flip(img, axis=-2)
     return img
@@ -31,9 +32,9 @@ def save_image(outfile, img: np.ndarray):
     if outfile.suffix in ['.v3draw', '.V3DRAW']:
         save_v3draw(img, outfile)
     elif outfile.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
-        sitk.WriteImage(sitk.GetImageFromArray(np.flip(img, axis=-2)), outfile)
+        sitk.WriteImage(sitk.GetImageFromArray(np.flip(img, axis=-2)), str(outfile))
     else:
-        sitk.WriteImage(sitk.GetImageFromArray(img), outfile)
+        sitk.WriteImage(sitk.GetImageFromArray(img), str(outfile))
     return True
 
 

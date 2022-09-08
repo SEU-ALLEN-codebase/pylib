@@ -356,7 +356,7 @@ class PBD:
     def update_compression_buffer3(self):
         pass
 
-    def load_image(self, path: str):
+    def load_image(self, path):
         assert os.path.exists(path)
         self.decompression_prior = 0
         format_key = "v3d_volume_pkbitdf_encod"
