@@ -73,10 +73,10 @@ def save_v3draw(img: np.ndarray, path):
             datatype = 2
         else:
             datatype = 4
-        endian = '>' if endian == 'B' else '<'
+        endian = '>' if endian == 'B' else 'L'
         f.write(struct.pack(endian + 'h', datatype))
         sz = list(img.shape)
-        sz.extend([0] * (4 - len(sz)))
+        sz.extend([1] * (4 - len(sz)))
         sz.reverse()
         f.write(struct.pack(endian + 'iiii', *sz))
         f.write(img.tobytes())
