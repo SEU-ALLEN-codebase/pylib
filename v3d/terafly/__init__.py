@@ -87,7 +87,8 @@ class Interface:
         """
         if path not in cls.loaded:
             cls.loaded[path] = cls.instance(path)
-        return cls.loaded[path].DIM_H, cls.loaded[path].DIM_V, cls.loaded[path].DIM_D
+        vol = cls.loaded[path]
+        return vol.DIM_H, vol.DIM_V, vol.DIM_D, vol.DIM_C
 
     @classmethod
     def get_subvolume(cls, path, x0, x1, y0, y1, z0, z1):
