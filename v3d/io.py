@@ -4,7 +4,7 @@ import numpy as np
 import sys
 
 
-def load_v3draw(path: str):
+def load_v3draw(path):
     """
     by Zuohan Zhao
     from basic_c_fun/stackutils.cpp
@@ -46,7 +46,7 @@ def load_v3draw(path: str):
         return img.reshape(sz[-1:-5:-1])
 
 
-def save_v3draw(img: np.ndarray, path: str):
+def save_v3draw(img: np.ndarray, path):
     """
     by Zuohan Zhao
     from basic_c_fun/stackutils.cpp
@@ -73,10 +73,10 @@ def save_v3draw(img: np.ndarray, path: str):
             datatype = 2
         else:
             datatype = 4
-        endian = '>' if endian == 'B' else '<'
+        endian = '>' if endian == 'B' else 'L'
         f.write(struct.pack(endian + 'h', datatype))
         sz = list(img.shape)
-        sz.extend([0] * (4 - len(sz)))
+        sz.extend([1] * (4 - len(sz)))
         sz.reverse()
         f.write(struct.pack(endian + 'iiii', *sz))
         f.write(img.tobytes())
@@ -356,7 +356,7 @@ class PBD:
     def update_compression_buffer3(self):
         pass
 
-    def load_image(self, path: str):
+    def load_image(self, path):
         assert os.path.exists(path)
         self.decompression_prior = 0
         format_key = "v3d_volume_pkbitdf_encod"

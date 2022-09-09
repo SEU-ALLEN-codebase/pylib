@@ -10,9 +10,8 @@ import numpy as np
 from scipy.interpolate import pchip_interpolate, interp1d
 import fire
 from concurrent.futures import ProcessPoolExecutor
-from scipy.stats import ttest_ind, ttest_ind_from_stats
+from scipy.stats import ttest_ind
 from sklearn.cluster import DBSCAN
-import SimpleITK as sitk
 
 from file_io import load_image
 import swc_handler
@@ -31,7 +30,7 @@ class HidePrint:
         sys.stdout = self._original_stdout
 
 
-def anchor_angles(center: np.ndarray, p: np.ndarray, ch, spacing=(1, 1, 4)):
+def anchor_angles(center: np.ndarray, p: np.ndarray, ch, spacing=(1, 1, 1)):
     """
     modified from Jingzhou's code
     :param center: coordinate for the multifurcation center
@@ -46,7 +45,7 @@ def anchor_angles(center: np.ndarray, p: np.ndarray, ch, spacing=(1, 1, 4)):
     return out
 
 
-def get_anchors(morph: Morphology, ind: list, dist: float, spacing=(1, 1, 4), epsilon=1e-7):
+def get_anchors(morph: Morphology, ind: list, dist: float, spacing=(1, 1, 1), epsilon=1e-7):
     """
     get anchors for a set of swc nodes to calculate angles, suppose they are one, their center is their mean coordinate,
     getting anchors requires removing redundant protrudes
@@ -95,7 +94,7 @@ def get_anchors(morph: Morphology, ind: list, dist: float, spacing=(1, 1, 4), ep
     return center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch
 
 
-def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spacing=(1, 1, 4)):
+def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spacing=(1, 1, 1)):
     """
     interpolate based on the coordinated point list given,
     aggregate the grayscale of the points in the image,
@@ -119,7 +118,7 @@ def gray_sampling(pts: list, img: np.ndarray, sampling=10, pix_win_radius=1, spa
     return gray
 
 
-def radius_sampling(pts: list, rads: list, sampling=10, spacing=(1, 1, 4)):
+def radius_sampling(pts: list, rads: list, sampling=10, spacing=(1, 1, 1)):
     """
     sampling == 0 means returning the original radius list
     """
@@ -160,7 +159,7 @@ def crossing_prune(args):
             radius_p_med = np.median(radius_sampling(pts_p, rad_p, sampling, spacing=spacing))
             radius_ch_med = [np.median(radius_sampling(pts, rad, sampling, spacing=spacing))
                              for pts, rad in zip(pts_ch, rad_ch)]
-            radius_diff = [abs(r - radius_p_med) + 0.1 for r in radius_ch_med]
+            radius_diff = [abs(r - radius_p_med) + 1 for r in radius_ch_med]
             # to = np.argmin(abs(angles - 180))     # used to pick the smallest angle difference for them
             score = [a * g * r for a, g, r in zip(angle_diff, gray_diff, radius_diff)]
             return com_node, protrude, score
@@ -271,7 +270,6 @@ def soma_limit_filter_gray(args):
         if len(img.shape) == 4:
             img = img[0]
         morph = Morphology(tree)
-        dist = morph.get_distances_to_soma(spacing)
 
         def stat(ct):
             ind = [np.clip([a - b, a + b + 1], 0, c - 1) for a, b, c in zip(ct, win_radius, img.shape[-1:-4:-1])]
@@ -350,6 +348,98 @@ def remove_disconnected(args):
     except Exception as e:
         print(e)
         print("The above error occurred in remove disconnected. Proceed anyway: " + swc_path)
+        return False
+
+
+def soma_prune(args):
+    swc_path, img_path, save_path, pass_rate, non_detect_radius, win_radius, \
+        spacing, min_radius, anchor_dist, sampling, pix_win_radius, soma_radius = args
+    try:
+        img = load_image(img_path)
+        if len(img.shape) == 4:
+            img = img[0]
+        tree = swc_handler.parse_swc(swc_path)
+        morph = Morphology(tree)
+        dist = morph.get_distances_to_soma(spacing)
+        soma_r = np.max([t[5] for t, d in zip(tree, dist) if d <= soma_radius])
+        pass_r = max(min_radius, soma_r) * pass_rate
+
+        def stat(ct, win_radius):
+            ind = [np.clip([a - b, a + b + 1], 0, c - 1) for a, b, c in zip(ct, win_radius, img.shape[-1:-4:-1])]
+            ind = np.array(ind, dtype=int)
+            return img[ind[2][0]:ind[2][1], ind[1][0]:ind[1][1], ind[0][0]:ind[0][1]].flatten()
+
+        ct = morph.pos_dict[morph.idx_soma][2:5]
+        soma_stat = stat(ct, win_radius)
+        if soma_stat.size <= np.dot(win_radius, (1, 1, 1)):
+            return False
+        pass_gray = soma_stat.mean() * pass_rate
+        awry_node = [t[0] for t, d in zip(tree, dist)
+                     if d > non_detect_radius and (t[5] > pass_r or stat(t[2:5], win_radius).mean() > pass_gray)]
+        rm_ind = set()
+        cs = np.array(morph.pos_dict[morph.idx_soma][2:5])
+        for i in awry_node:
+            pts = [morph.pos_dict[i]]
+            skip = False
+            cs_fake = np.array([pts[0][2:5]])
+            while pts[-1][6] != -1:
+                if pts[-1][0] in rm_ind:
+                    skip = True
+                    break
+                pts.append(morph.pos_dict[pts[-1][6]])
+            if skip or len(pts) < 3:
+                continue
+            tmp_morph = Morphology(pts)
+            gof1 = []
+            len1 = []
+            gof2 = []
+            len2 = []
+            gray2 = []
+            for j, p in enumerate(pts):
+                if j == 0 or j == len(pts) - 1 or np.linalg.norm((p[2:5] - cs) * spacing) <= soma_radius:
+                    gof1.append(0)
+                    len1.append(0)
+                    gof2.append(0)
+                    len2.append(0)
+                    gray2.append(0)
+                    continue
+                with HidePrint():
+                    center, anchor_p, anchor_ch, protrude, com_node, pts_p, pts_ch, rad_p, rad_ch = \
+                        get_anchors(tmp_morph, [p[0]], anchor_dist, spacing)
+                gof1.append(anchor_angles(center, cs, np.array(anchor_ch), spacing=spacing)[0])
+                len1.append(np.linalg.norm((np.array(p[2:5]) - pts[j - 1][2:5]) * spacing))
+                gof2.append(anchor_angles(center, anchor_p, cs_fake, spacing=spacing)[0])
+                len2.append(np.linalg.norm((np.array(p[2:5]) - pts[j + 1][2:5]) * spacing))
+                gray2.append(np.exp(10 * (1 - stat(p[2:5], [2, 2, 1]).mean() / 255) ** 2))
+            cdf1 = [] # soma to fake
+            cdf2 = [] # fake to soma
+            gof1.reverse()
+            len1.reverse()
+            gray1 = gray2.copy()
+            gray1.reverse()
+            for a, b, c, d, e, f in zip(gof1, gof2, len1, len2, gray1, gray2):
+                cdf1.append(a * c * e)
+                if len(cdf1) > 1:
+                    cdf1[-1] += cdf1[-2]
+                cdf2.append(b * d * f)
+                if len(cdf2) > 1:
+                    cdf2[-1] += cdf2[-2]
+            cdf1.reverse()
+            k = 0
+            for a, b in zip(cdf1, cdf2):
+                if a < b:
+                    break
+                k += 1
+            if len(morph.child_dict[pts[k][0]]) > 1:
+                k -= 1
+            rm_ind.add(pts[k][0])
+
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        swc_handler.write_swc(swc_handler.prune(morph.tree, rm_ind), save_path)
+        return True
+    except Exception as e:
+        print(str(e))
+        print("The above error occurred in soma prune. Proceed anyway: " + swc_path)
         return False
 
 
@@ -435,8 +525,6 @@ class CLI200k:
                          [(path, downer, upper) for path in self.swc_files],
                          chunksize=self.chunk)
             )
-            # bool_list = [*map(lambda tree: len(tree) >= downer and (upper < 0 or len(tree) <= upper), self.trees)]
-            # self.trees = list(compress(self.trees, bool_list))
             self.swc_files = list(compress(self.swc_files, bool_list))
             self.img_files = list(compress(self.img_files, bool_list))
             print('swc node filtering finished.')
@@ -453,13 +541,6 @@ class CLI200k:
                          [(paths, self.soma_radius, max_count, min_radius, pass_rate,
                            min_radius_keep, eps, self.spacing) for paths in self.swc_files], chunksize=self.chunk)
             )
-            # bool_list = list(
-            #     pool.map(soma_limit_filter,
-            #              [(tree, self.soma_radius, max_count, min_radius, pass_rate,
-            #                min_radius_remove, eps, self.spacing) for tree in self.trees],
-            #              chunksize=self.chunk)
-            # )
-            # self.trees = list(compress(self.trees, bool_list))
             if invert:
                 bool_list = [not b for b in bool_list]
             self.swc_files = list(compress(self.swc_files, bool_list))
@@ -478,13 +559,6 @@ class CLI200k:
                          [(*paths, self.soma_radius, min_radius, max_count, win_radius, pass_rate, eps, self.spacing)
                           for paths in zip(self.swc_files, self.img_files)], chunksize=self.chunk)
             )
-            # bool_list = list(
-            #     pool.map(soma_limit_filter,
-            #              [(tree, self.soma_radius, max_count, min_radius, pass_rate,
-            #                min_radius_remove, eps, self.spacing) for tree in self.trees],
-            #              chunksize=self.chunk)
-            # )
-            # self.trees = list(compress(self.trees, bool_list))
             if invert:
                 bool_list = [not b for b in bool_list]
             self.swc_files = list(compress(self.swc_files, bool_list))
@@ -505,7 +579,24 @@ class CLI200k:
         print('remove disconnected done.')
         return self
 
-    def crossing_prune(self, anchor_dist=15, dist_thr=5, suffix="_xpruned"):
+    def soma_prune(self, pass_rate=0.5, min_radius=3, anchor_dist=10, win_radius=(6, 6, 4),
+                   non_detect_radius=25, suffix="_spruned"):
+        swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
+        with ProcessPoolExecutor(max_workers=self.jobs) as pool:
+            bool_list = list(
+                pool.map(soma_prune,
+                         [(*paths, pass_rate, non_detect_radius, win_radius, self.spacing, min_radius,
+                           anchor_dist, self.sampling, self.pix_win_radius, self.soma_radius)
+                          for paths in zip(self.swc_files, self.img_files, swc_saves)],
+                         chunksize=self.chunk)
+            )
+        self.swc_files = list(compress(swc_saves, bool_list))
+        self.img_files = list(compress(self.img_files, bool_list))
+        self.root = self.output_dir
+        print('soma prune done.')
+        return self
+
+    def crossing_prune(self, anchor_dist=10, dist_thr=5, suffix="_xpruned"):
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             bool_list = list(
@@ -515,20 +606,13 @@ class CLI200k:
                           for paths in zip(self.swc_files, self.img_files, swc_saves)],
                          chunksize=self.chunk)
             )
-            # self.trees = list(
-            #     pool.map(crossing_prune,
-            #              [(tree, img_path, anchor_dist, self.soma_radius, dist_thr,
-            #                self.spacing, self.sampling, self.pix_win_radius)
-            #               for tree, img_path in zip(self.trees, self.img_files)],
-            #              chunksize=self.chunk)
-            # )
         self.swc_files = list(compress(swc_saves, bool_list))
         self.img_files = list(compress(self.img_files, bool_list))
         self.root = self.output_dir
         print('crossing prune done.')
         return self
 
-    def branch_prune(self, angle_thr=90, gray_pvalue=0.01, radius_pvalue=0.01, anchor_dist=15, suffix="_ypruned"):
+    def branch_prune(self, angle_thr=90, gray_pvalue=0.01, radius_pvalue=0.01, anchor_dist=10, suffix="_ypruned"):
         swc_saves = save_path_gen(self.swc_files, self.root, self.output_dir, suffix)
         with ProcessPoolExecutor(max_workers=self.jobs) as pool:
             bool_list = list(
@@ -538,41 +622,11 @@ class CLI200k:
                           for paths in zip(self.swc_files, self.img_files, swc_saves)],
                          chunksize=self.chunk)
             )
-        # with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-        #     self.trees = list(
-        #         pool.map(branch_prune,
-        #                  [(tree, img_path, angle_thr, gray_pvalue, radius_pvalue, anchor_dist, self.soma_radius,
-        #                    self.spacing, self.sampling, self.pix_win_radius)
-        #                   for tree, img_path in zip(self.trees, self.img_files)],
-        #                  chunksize=self.chunk)
-        #     )
         self.swc_files = list(compress(swc_saves, bool_list))
         self.img_files = list(compress(self.img_files, bool_list))
         self.root = self.output_dir
         print('branch prune done.')
         return self
-
-    # def write_swc(self, dir=None, suffix="_filtered"):
-    #     """
-    #     add suffix between file name and file type
-    #     """
-    #     if dir is not None and self.root == "":
-    #         print('warning: no common dir for all the swc, will save to the original folder.')
-    #         dir = None
-    #     if dir is None and suffix == "":
-    #         ok = input('warning: swc writing will replace the original file. proceed? (y/yes/[enter])')
-    #         if not (ok.lower() == 'y' or ok == '' or ok.lower() == 'yes'):
-    #             print('job terminated.')
-    #             return
-    #     with ProcessPoolExecutor(max_workers=self.jobs) as pool:
-    #         for f, t in zip(self.swc_files, self.trees):
-    #             path = f.split('.swc')[0] + suffix + '.swc'
-    #             if dir is not None:
-    #                 path = os.path.join(dir, os.path.relpath(path, self.root))
-    #                 os.makedirs(os.path.dirname(path), exist_ok=True)
-    #             swc_handler.write_swc(t, path)
-    #         print('swc writing finished.')
-    #     return self
 
     def write_ano(self, ano=""):
         """
