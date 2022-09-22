@@ -110,8 +110,8 @@ class PBD:
     def decompress_pbd8(self, compression_len: int):
         cp = 0
         dp = 0
-        pva = 0
-        pvb = 0
+        pva = np.array(0, dtype=np.uint8)
+        pvb = np.array(0, dtype=np.uint8)
         mask = 3
         while cp < compression_len:
             value = self.compression_buffer[self.compression_pos + cp]
