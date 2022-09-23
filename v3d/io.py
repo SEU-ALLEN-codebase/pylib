@@ -137,18 +137,18 @@ class PBD:
                     src_char >>= 2
                     p3 = src_char & mask
                     pva = self.decompression_prior + (-1 if p0 == 3 else p0)
-                    self.decompression_buffer[to_fill] = np.uint8(pva)
+                    self.decompression_buffer[to_fill] = pva
                     if fill_num > 1:
                         to_fill += 1
                         pvb = pva + (-1 if p1 == 3 else p1)
-                        self.decompression_buffer[to_fill] = np.uint8(pvb)
+                        self.decompression_buffer[to_fill] = pvb
                         if fill_num > 2:
                             to_fill += 1
                             pva = pvb + (-1 if p2 == 3 else p2)
-                            self.decompression_buffer[to_fill] = np.uint8(pva)
+                            self.decompression_buffer[to_fill] = pva
                             if fill_num > 3:
                                 to_fill += 1
-                                self.decompression_buffer[to_fill] = np.uint8(pva + (-1 if p3 == 3 else p3))
+                                self.decompression_buffer[to_fill] = pva + (-1 if p3 == 3 else p3)
                     self.decompression_prior = self.decompression_buffer[to_fill]
                     dp += fill_num
                     left_to_fill -= fill_num
@@ -156,12 +156,12 @@ class PBD:
             else:
                 repeat_count = value - 127
                 cp += 1
-                repeat_value = self.compression_buffer[cp:cp+1]
+                repeat_value = self.compression_buffer[self.compression_pos + cp: self.compression_pos + cp+1]
                 self.decompression_buffer[self.decompression_pos + dp:
-                                          self.decompression_pos + dp + repeat_count] = np.uint8(repeat_value) * repeat_count
+                                          self.decompression_pos + dp + repeat_count] = repeat_value * repeat_count
                 dp += repeat_count
-                cp += 1
                 self.decompression_prior = struct.unpack('B', repeat_value)[0]
+                cp += 1
         return dp
 
     def decompress_pbd16(self, compression_len):
@@ -285,7 +285,7 @@ class PBD:
                 cp += 1
                 repeat_value = self.compression_buffer[self.compression_pos + cp: self.compression_pos + cp + 2]
                 self.decompression_buffer[self.decompression_pos + dp:
-                                          self.decompression_pos + dp + repeat_count * 2] = np.uint8(repeat_value) * repeat_count
+                                          self.decompression_pos + dp + repeat_count * 2] = repeat_value * repeat_count
                 dp += repeat_count * 2
                 cp += 2
                 self.decompression_prior = struct.unpack(self.endian + 'H', repeat_value)[0]
@@ -400,10 +400,9 @@ class PBD:
                 bytes2channel_bound = (self.pbd3_cur_chan + 1) * self.channel_len - self.total_read_bytes
                 current_read_bytes = min(current_read_bytes, bytes2channel_bound)
                 new_bytes = f.read(current_read_bytes)
-                n_read = len(new_bytes)
-                self.compression_buffer[self.total_read_bytes: self.total_read_bytes + n_read] = new_bytes
-                self.total_read_bytes += n_read
-                remaining_bytes -= n_read
+                self.compression_buffer[self.total_read_bytes: self.total_read_bytes + current_read_bytes] = new_bytes
+                self.total_read_bytes += current_read_bytes
+                remaining_bytes -= current_read_bytes
                 if datatype == 1:
                     self.update_compression_buffer8()
                 elif datatype == 33:
