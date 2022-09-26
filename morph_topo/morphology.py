@@ -237,6 +237,51 @@ class Morphology(AbstractTree):
                 path_dists[seg_id] += frag_lengths_dict[n_id]
         return path_dists
 
+    def prune_by_seg_length(self, seg_dict, seglen_dict, seg_length_thresh):
+        remaining_tips = [tip for tip in self.tips]
+        del_tips = []
+        while len(remaining_tips) > 0:
+            del_tips_current = []
+            del_seg_end_current = []
+            for tip in remaining_tips:
+                if self.pos_dict[tip][6] == self.idx_soma:
+                    continue
+                if seglen_dict[tip] < seg_length_thresh:
+                    # delete current tip
+                    del_tips_current.append(tip)
+                    if len(seg_dict[tip]) > 0:
+                        del_seg_end_current.append(seg_dict[tip][-1])
+                    else:
+                        del_seg_end_current.append(tip)
+
+            del_tips.extend(del_tips_current)
+
+            remaining_tips = []
+            # update the tips
+            del_seg_end_current_set = set(del_seg_end_current)
+            for i, tip in enumerate(del_tips_current):
+                pidx_topo = self.pos_dict[del_seg_end_current[i]][6]
+                childs_p = self.child_dict[pidx_topo]
+                all_removed = True
+                for child in childs_p:
+                    if child not in del_seg_end_current_set:
+                        all_removed = False
+                        break
+                if all_removed:
+                    remaining_tips.append(pidx_topo)
+
+        del_tips = set(del_tips)
+        pruned_tree = []
+        for seg_id, seg_nodes in seg_dict.items():
+            if seg_id not in del_tips:
+                pruned_tree.append(self.pos_dict[seg_id])
+                for node_id in seg_nodes:
+                    #if node_id == self.idx_soma:
+                    #    print(node_id, seg_id)
+                    pruned_tree.append(self.pos_dict[node_id])
+
+        return pruned_tree
+
     def convert_to_topology_tree(self):
         """
         The original tree contains unifurcation, which should be merged
@@ -333,6 +378,39 @@ class Topology(AbstractTree):
             self.calc_order_dict()
         self.topo_depth = max(self.order_dict.values())
         return self.topo_depth
+
+    def get_topo_segs(self, seg_dict, seglen_dict):
+        """
+        Convert seg_dict into topology seg, similar to topo_seg in APP2
+        Algorithm description
+        """
+        # dfs search
+        def temp(topo_segs, seg_dict, child_dict, idx):
+            if idx not in child_dict:
+                # tip
+                pass
+
+        paths = self.get_all_paths()    # tip to soma
+        topo_dists = {}
+        topo_leafs = {}
+        for node in self.tree:
+            topo_dists[node[0]] = 0
+            topo_leafs[node[0]] = 0
+
+        for tip, path in paths.items():
+            topo_leafs[tip] = tip
+
+            for cnode, pnode in zip(path[:-1], path[1:]):
+                tmp_dist = seglen_dict[cnode] + topo_dists[cnode]
+                if tmp_dist >= topo_dists[pnode]:
+                    topo_dists[pnode] = tmp_dist
+                    topo_leafs[pnode] = topo_leafs[cnode]
+        #
+        topo_segs = {}
+        for pid, lid in topo_leafs.items():
+            topo_segs[lid] = (topo_leafs[pid], topo_dists[pid])
+
+        return topo_segs
         
 
 if __name__ == '__main__':
