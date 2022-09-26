@@ -56,7 +56,8 @@ class TiledVolume(VirtualVolume):
         if intersect_segm is not None:
             for row in range(self.N_ROWS):
                 for col in range(self.N_COLS):
-                    intersect_area = self.BLOCKS[row][col].intersects_rect(subvol_area)
+                    block = self.BLOCKS[row][col]
+                    intersect_area = block.intersects_rect(subvol_area)
                     if intersect_area is not None:
                         for k in range(intersect_segm.ind0, intersect_segm.ind1 + 1):
                             if first_time:
@@ -73,26 +74,20 @@ class TiledVolume(VirtualVolume):
                                 else:
                                     raise "unsupported datatype"
                                 buffer = np.zeros((sbv_depth, sbv_height, sbv_width), dtype=dt)
-                            slice_fullpath = Path(self.root_dir) / self.BLOCKS[row][col].DIR_NAME / \
-                                             self.BLOCKS[row][col].FILENAMES[k]
+                            slice_fullpath = Path(self.root_dir) / block.DIR_NAME / block.FILENAMES[k]
                             # vertices of file block
-                            sv0 = 0 if v0 < intersect_area.V0 else v0 - self.BLOCKS[row][col].ABS_V
-                            sv1 = self.BLOCKS[row][col].HEIGHT if v1 > intersect_area.V1 \
-                                else v1 - self.BLOCKS[row][col].ABS_V
-                            sh0 = 0 if h0 < intersect_area.H0 else h0 - self.BLOCKS[row][col].ABS_H
-                            sh1 = self.BLOCKS[row][col].WIDTH if h1 > intersect_area.H1 \
-                                else h1 - self.BLOCKS[row][col].ABS_H
-                            sd0 = 0 if d0 < self.BLOCKS[row][col].BLOCK_ABS_D[k] \
-                                else d0 - self.BLOCKS[row][col].BLOCK_ABS_D[k]
-                            sd1 = self.BLOCKS[row][col].BLOCK_SIZE[k] \
-                                if d1 > self.BLOCKS[row][col].BLOCK_ABS_D[k] + self.BLOCKS[row][col].BLOCK_SIZE[k] \
-                                else d1 - self.BLOCKS[row][col].BLOCK_ABS_D[k]
+                            sv0 = 0 if v0 < intersect_area.V0 else v0 - block.ABS_V
+                            sv1 = block.HEIGHT if v1 > intersect_area.V1 else v1 - block.ABS_V
+                            sh0 = 0 if h0 < intersect_area.H0 else h0 - block.ABS_H
+                            sh1 = block.WIDTH if h1 > intersect_area.H1 else h1 - block.ABS_H
+                            sd0 = 0 if d0 < block.BLOCK_ABS_D[k] else d0 - block.BLOCK_ABS_D[k]
+                            sd1 = block.BLOCK_SIZE[k] if d1 > block.BLOCK_ABS_D[k] + block.BLOCK_SIZE[k] \
+                                else d1 - block.BLOCK_ABS_D[k]
 
                             # vertices of buffer block
                             bv0 = 0 if v0 > intersect_area.V0 else intersect_area.V0 - v0
                             bh0 = 0 if h0 > intersect_area.H0 else intersect_area.H0 - h0
-                            bd0 = 0 if d0 > self.BLOCKS[row][col].BLOCK_ABS_D[k] else \
-                                self.BLOCKS[row][col].BLOCK_ABS_D[k] - d0
+                            bd0 = 0 if d0 > block.BLOCK_ABS_D[k] else block.BLOCK_ABS_D[k] - d0
 
                             if "NULL.tif" in str(slice_fullpath):
                                 continue
@@ -100,8 +95,8 @@ class TiledVolume(VirtualVolume):
                             img = load_image(slice_fullpath, flip_tif=False)
                             if len(img.shape) == 4:
                                 img = img[0]
-                            buffer[bd0:bd0 + sd1 - sd0, bv0:bv0 + sv1 - sv0, bh0:bh0 + sh1 - sh0] = img[sd0:sd1,
-                                                                                                    sv0:sv1, sh0:sh1]
+                            buffer[bd0:bd0 + sd1 - sd0, bv0:bv0 + sv1 - sv0, bh0:bh0 + sh1 - sh0] = \
+                                img[sd0:sd1, sv0:sv1, sh0:sh1]
         else:
             raise "TiledVolume: depth interval out of range"
         return buffer
