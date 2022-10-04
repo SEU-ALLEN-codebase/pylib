@@ -141,7 +141,7 @@ def crossing_prune(args):
     try:
         tree = swc_handler.parse_swc(swc_path)
         morph = Morphology(tree)
-        cf = CrossingFinder(morph, soma_radius, dist_thr)
+        cf = CrossingFinder(morph, soma_radius, dist_thr, spacing)
         img = load_image(img_path)
         if len(img.shape) == 4:
             img = img[0]
