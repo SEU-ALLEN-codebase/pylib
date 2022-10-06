@@ -12,8 +12,6 @@
 import numpy as np
 from scipy.spatial import distance_matrix
 
-import swc_handler
-from queue import SimpleQueue
 from math_utils import calc_included_angles_from_coords, calc_included_angles_from_vectors
 from morph_topo.morphology import Morphology
 
@@ -216,34 +214,33 @@ class CrossingFinder(object):
         print(f'Number of crossing and crossing-like: {len(points)} / {len(pairs)}')
         return points, pairs
 
-    def find_mega_crossing(self, mega_radius):
-        cs = np.array(self.morph.pos_dict[self.morph.idx_soma][2:5])
+    def find_mega_crossing(self, include_bifurcation=False):
+        chains = []
         topo_tree, seg_dict = self.morph.convert_to_topology_tree()
-        cross_tree = []
-        for i in topo_tree:
-            if i[6] == self.morph.idx_soma or i[6] == self.morph.p_soma or \
-                    np.linalg.norm((self.morph.pos_dict[i[6]][2:5] - cs) * self.spacing) <= self.soma_radius or \
-                    np.linalg.norm((self.morph.pos_dict[i[6]][2:5] - self.morph.pos_dict[i][2:5]) * np.array(self.spacing)):
-                cross_tree.append(i[:6] + (-1,))
-            else:
-                cross_tree.append(i)
-        child_dict = swc_handler.get_child_dict(cross_tree)
-        index_dict = swc_handler.get_index_dict(cross_tree)
-        q = SimpleQueue()
-        out = []
-        visited = [False] * len(cross_tree)
-        for i, t in enumerate(cross_tree):
-            if visited[i]:
+        topo_morph = Morphology(topo_tree)
+        dists = topo_morph.get_distances_to_soma(self.spacing)
+        visited = dict.fromkeys(topo_morph.pos_dict.keys(), False)
+        branch = topo_morph.bifurcation | topo_morph.multifurcation
+        for tid in topo_morph.tips:
+            chain = []
+            if tid == topo_morph.p_soma:
                 continue
-            q.put(t[0])
-            crossing = []
-            while not q.empty():
-                head = q.get()
-                visited[index_dict[head]] = True
-                crossing.append(head)
-                if head in child_dict:
-                    for c in child_dict[head]:
-                        q.put(c)
-            if len(crossing) > 1 or crossing[0] in child_dict and len(child_dict[crossing[0]]) > 2:
-                out.append(crossing)
-        return out
+            idx = topo_morph.pos_dict[tid][6]       # starting from the last branch
+            while idx != topo_morph.p_soma:
+                if chain:
+                    v = np.array([topo_morph.pos_dict[chain[-1]][2:5]] + [self.morph.pos_dict[n][2:5] for n in seg_dict[chain[-1]]] + [topo_morph.pos_dict[idx][2:5]])
+                    if np.linalg.norm((v[1:] - v[:-1]) * self.spacing, axis=-1).sum() > self.dist_thresh or \
+                            dists[topo_morph.index_dict[idx]] <= self.soma_radius or idx not in branch:
+                        if len(chain) > 1 or chain[0] in topo_morph.multifurcation or include_bifurcation:
+                            chains.append(chain)
+                        chain = []
+                        if visited[idx]:
+                            break
+                if dists[topo_morph.index_dict[idx]] > self.soma_radius and idx in branch:
+                    chain.append(idx)
+                visited[idx] = True
+                idx = topo_morph.pos_dict[idx][6]
+            if len(chain) > 1 or chain and (chain[0] in topo_morph.multifurcation or include_bifurcation):
+                chains.append(chain)
+        # merge
+        return [set.union(*[set(t) for t in chains if t[-1] == head]) for head in np.unique([i[-1] for i in chains])]

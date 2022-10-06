@@ -88,7 +88,7 @@ class AbstractTree(object):
         stats = dists.mean(), dists.std(), dists.max(), dists.min()
         return stats
 
-    def get_distances_to_soma(self, spacing=(1, 1, 4)):
+    def get_distances_to_soma(self, spacing=(1, 1, 1)):
         """
         euclidean distance to soma for all nodes
         """
