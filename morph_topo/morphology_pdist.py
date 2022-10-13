@@ -192,7 +192,7 @@ class PDist(object):
     def get_crossing_points(self, cur_crossing_dict):
         def get_points(idx, pos_dict, child_dict):
             # find out the direct connecting points
-            idxs = [idx, pos_dict[idx][-1]]
+            idxs = [idx, pos_dict[idx][6]]
             if idx in child_dict:
                 for ii in child_dict[idx]:
                     idxs.append(ii)
@@ -273,7 +273,7 @@ class PDist(object):
                     pts.append(cc)
 
                     if is_parent:
-                        anchor_idx = morph.pos_dict[anchor_idx][-1]
+                        anchor_idx = morph.pos_dict[anchor_idx][6]
                     else:
                         if anchor_idx not in morph.child_dict:
                             break

@@ -194,7 +194,7 @@ class Morphology(AbstractTree):
         """
 
         def find_path_dfs(idx, path_dict, pos_dict, child_dict):
-            pidx = pos_dict[idx][-1]
+            pidx = pos_dict[idx][6]
             
             if pidx in path_dict:
                 path_dict[idx] = path_dict[pidx] + [pidx]
@@ -250,7 +250,7 @@ class Morphology(AbstractTree):
                     # delete current tip
                     del_tips_current.append(tip)
                     if len(seg_dict[tip]) > 0:
-                        del_seg_end_current.append(seg_dict[tip][-1])
+                        del_seg_end_current.append(seg_dict[tip][6])
                     else:
                         del_seg_end_current.append(tip)
 
