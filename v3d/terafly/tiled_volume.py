@@ -99,4 +99,4 @@ class TiledVolume(VirtualVolume):
                                 img[sd0:sd1, sv0:sv1, sh0:sh1]
         else:
             raise "TiledVolume: depth interval out of range"
-        return buffer
+        return np.flip(buffer, axis=-2)
