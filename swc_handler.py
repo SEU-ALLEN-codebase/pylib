@@ -325,6 +325,11 @@ def crop_tree_by_bbox(morph, bbox, keep_candidate_points=True):
     Crop swc by trim all nodes out-of-bbox. This function differs from `trim_out_of_box` it does
     not assume center cropping
     """
+    if isinstance(morph, list):
+        mtree = morph
+    else:
+        mtree = morph.tree
+
     tree = []
     for i, leaf in enumerate(morph.tree):
         idx, type_, x, y, z, r, p = leaf[:7]
