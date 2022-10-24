@@ -10,13 +10,13 @@
 #
 #================================================================
 
-from image_io import load_image, save_image
+from file_io import load_image, save_image
 
 
 def get_mip_image(img3d, axis=0, mode='MAX'):
     if mode == 'MAX':
         img2d = img3d.max(axis=axis)
-    elif mode = 'MIN':
+    elif mode == 'MIN':
         img2d = img3d.min(axis=axis)
     else:
         raise ValueError
