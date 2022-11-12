@@ -139,7 +139,7 @@ def get_regional_neighbors_cuda(mask_file=None, radius=5):
         mask_i_dil = (F.conv3d(mask_i, weights, stride=1, padding=radius) > 0)[0,0]
         neighbors = torch.unique(mask[mask_i_dil]).cpu()
         # remove self
-        neighbors = [ni for ni in neighbors if ni != v]
+        neighbors = [ni.item() for ni in neighbors if ni != v]
         rn_dict[v] = neighbors
         cnt += 1
         if cnt % 5 == 0:
