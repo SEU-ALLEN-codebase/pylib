@@ -16,7 +16,7 @@ import numpy as np
 from anatomy.anatomy_config import *
 from file_io import load_image
 
-def parse_ana_tree(tree_file=None, map_file=None):
+def parse_ana_tree(tree_file=None, map_file=None, keyname='id'):
     if tree_file is None:
         tree_file = ANATOMY_TREE_FILE
 
@@ -50,7 +50,12 @@ def parse_ana_tree(tree_file=None, map_file=None):
             mapped_ids.extend(rev_mapper[_idx])
         reg['mapped_ids'] = mapped_ids
 
-        ana_dict[name] = reg
+        if keyname == 'name':
+            ana_dict[name] = reg
+        elif keyname == 'id':
+            ana_dict[idx] = reg
+        else:
+            raise ValueError
 
     return ana_dict
         

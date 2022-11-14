@@ -19,7 +19,7 @@ from pathlib import Path
 
 def load_image(img_file, flip_tif=True):
     img_file = Path(img_file)
-    if img_file.suffix in ['.v3draw', '.V3DRAW']:
+    if img_file.suffix in ['.v3draw', '.V3DRAW', '.raw', '.RAW']:
         return load_v3draw(img_file)
     if img_file.suffix in ['.v3dpbd', '.V3DPBD']:
         return PBD().load_image(img_file)
