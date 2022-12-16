@@ -34,7 +34,7 @@ def save_image(outfile, img: np.ndarray, flip_tif=True):
     elif outfile.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
         if flip_tif:
             img = np.flip(img, axis=-2)
-        sitk.WriteImage(sitk.GetImageFromArray(np.flip(img, axis=-2)), str(outfile))
+        sitk.WriteImage(sitk.GetImageFromArray(img), str(outfile))
     else:
         sitk.WriteImage(sitk.GetImageFromArray(img), str(outfile))
     return True
