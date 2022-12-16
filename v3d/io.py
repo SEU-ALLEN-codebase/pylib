@@ -73,7 +73,7 @@ def save_v3draw(img: np.ndarray, path):
             datatype = 2
         else:
             datatype = 4
-        endian = '>' if endian == 'B' else 'L'
+        endian = '>' if endian == 'B' else '<'
         f.write(struct.pack(endian + 'h', datatype))
         sz = list(img.shape)
         sz.extend([1] * (4 - len(sz)))

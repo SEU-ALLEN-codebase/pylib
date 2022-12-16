@@ -35,7 +35,7 @@ class MorphAngles(object):
         par_coords = []
         chi_coords = []
         for idx in indices_set:
-            p_idx = morph.pos_dict[idx][-1]
+            p_idx = morph.pos_dict[idx][6]
             if p_idx not in morph.pos_dict:
                 continue
             if idx not in morph.child_dict:

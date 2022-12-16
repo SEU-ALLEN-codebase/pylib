@@ -12,8 +12,8 @@
 import numpy as np
 from scipy.spatial import distance_matrix
 
-from swc_handler import parse_swc
 from math_utils import calc_included_angles_from_coords, calc_included_angles_from_vectors
+from morph_topo.morphology import Morphology
 
 
 def find_point_by_distance(pt, anchor_idx, is_parent, morph, dist, return_center_point=True, epsilon=1e-7,
@@ -162,7 +162,7 @@ class BreakFinder(object):
 
 
 class CrossingFinder(object):
-    def __init__(self, morph, soma_radius=30., dist_thresh=3., spacing=np.array([1., 1., 4.]), epsilon=1e-7):
+    def __init__(self, morph: Morphology, soma_radius=30., dist_thresh=3., spacing=np.array([1., 1., 1.]), epsilon=1e-7):
         self.morph = morph
         self.soma_radius = soma_radius
         self.dist_thresh = dist_thresh
@@ -214,34 +214,33 @@ class CrossingFinder(object):
         print(f'Number of crossing and crossing-like: {len(points)} / {len(pairs)}')
         return points, pairs
 
-    def find_mega_crossing(self, mega_radius):
-        trails = []
-        cs = np.array(self.morph.pos_dict[self.morph.idx_soma][2:5])
-        for tid in self.morph.tips:
-            idx = tid
-            pres = []
-            while idx != self.morph.idx_soma and idx != -1:
-                if idx in self.morph.child_dict and len(self.morph.child_dict[idx]) >= 2:
-                    if pres:
-                        c0 = np.array(self.morph.pos_dict[idx][2:5])
-                        c1 = np.array(self.morph.pos_dict[pres[-1]][2:5])
-                        if np.linalg.norm((c0 - cs) * self.spacing) > self.soma_radius and \
-                                np.linalg.norm((c0 - c1) * self.spacing) < self.dist_thresh:
-                            pres.append(idx)
-                        else:
-                            if len(pres) > 1 or len(self.morph.child_dict[pres[-1]]) > 2:
-                                trails.append(pres)
-                            pres = []
-                    else:
-                        pres.append(idx)
-                idx = self.morph.pos_dict[idx][6]
+    def find_mega_crossing(self, include_bifurcation=False):
+        chains = []
+        topo_tree, seg_dict = self.morph.convert_to_topology_tree()
+        topo_morph = Morphology(topo_tree)
+        dists = topo_morph.get_distances_to_soma(self.spacing)
+        visited = dict.fromkeys(topo_morph.pos_dict.keys(), False)
+        branch = topo_morph.bifurcation | topo_morph.multifurcation
+        for tid in topo_morph.tips:
+            chain = []
+            if tid == topo_morph.p_soma:
+                continue
+            idx = topo_morph.pos_dict[tid][6]       # starting from the last branch
+            while idx != topo_morph.p_soma:
+                if chain:
+                    v = np.array([topo_morph.pos_dict[chain[-1]][2:5]] + [self.morph.pos_dict[n][2:5] for n in seg_dict[chain[-1]]] + [topo_morph.pos_dict[idx][2:5]])
+                    if np.linalg.norm((v[1:] - v[:-1]) * self.spacing, axis=-1).sum() > self.dist_thresh or \
+                            dists[topo_morph.index_dict[idx]] <= self.soma_radius or idx not in branch:
+                        if len(chain) > 1 or chain[0] in topo_morph.multifurcation or include_bifurcation:
+                            chains.append(chain)
+                        chain = []
+                        if visited[idx]:
+                            break
+                if dists[topo_morph.index_dict[idx]] > self.soma_radius and idx in branch:
+                    chain.append(idx)
+                visited[idx] = True
+                idx = topo_morph.pos_dict[idx][6]
+            if len(chain) > 1 or chain and (chain[0] in topo_morph.multifurcation or include_bifurcation):
+                chains.append(chain)
         # merge
-        out = []
-        end = np.unique([i[-1] for i in trails])
-        for i in end:
-            b = set.union(*[set(t) for t in trails if t[-1] == i])
-            ct = np.mean([self.morph.pos_dict[i][2:5] for i in b], axis=0)
-            if np.linalg.norm(ct - self.morph.pos_dict[self.morph.idx_soma][2:5]) > self.epsilon and \
-                    np.mean([np.linalg.norm(self.morph.pos_dict[i][2:5] - ct) for i in b]) <= mega_radius:
-                out.append(b)
-        return out
+        return [set.union(*[set(t) for t in chains if t[-1] == head]) for head in np.unique([i[-1] for i in chains])]

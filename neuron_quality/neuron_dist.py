@@ -23,6 +23,10 @@ from swc_handler import parse_swc, write_swc, scale_swc, is_in_box
 
 
 def tree_to_voxels(tree, crop_box):
+    """
+    Turn an swc tree to voxel coordinates. Fragments (segment between nodes) are interpolated.
+    The crop_box enables choosing a sub region
+    """
     # initialize position dict
     pos_dict = {}
     new_tree = []
@@ -75,16 +79,34 @@ def get_specific_neurite(tree, type_id):
 
 
 class DistanceEvaluation(object):
-    def __init__(self, crop_box, neurite_type='all'):
+    def __init__(self, crop_box, neurite_type='all', diff_dist=2.0, abs=False, pct_by_self=True, soma_radius=0, spacing=(1, 1, 1)):
+        """
+        dists between neuron1 and neuron2 are different when you use one of them as background and the other as foreground,
+        we define dist1 as neuron1 against neuron2 and vice versa. The trees are voxelized to maximize precision, and the
+        dists and quantities of different structures are measured in voxels.
+
+        Here are some instructions on the input arguments.
+        crop_box: the range of voxelization
+        pct_by_self: flag to set if pds is divided by its own size or the other when abs is True. Default as True.
+                    You may want to turn it False when the 2
+        diff_dist: the minimum distance for different structures, default as 2.0
+        abs: whether to output the absolute #voxels of each metric, default as False
+        soma_radius: not doing calculation for region within. Default as 0
+        spacing: that of the image the swc is reconstructed from
+        """
         self.crop_box = crop_box
         self.neurite_type = neurite_type
-        self.dm_dist = 2.0
-        self.abs = False
-        self.soma_radius = 0
-        self.spacing = (1, 1, 4)
+        self.diff_dist = diff_dist
+        self.abs = abs
+        self.pct_by_self = pct_by_self
+        self.soma_radius = soma_radius
+        self.spacing = spacing
 
 
     def memory_safe_min_distances(self, voxels1, voxels2, num_thresh=50000):
+        """
+        output the distance matrix between 2 sets of voxel coordinates
+        """
         # verified
         nv1 = len(voxels1)
         nv2 = len(voxels2)
@@ -130,22 +152,25 @@ class DistanceEvaluation(object):
 
         for key in dist_results:
             if key == 'DSA':
-                dists1_ = dists1[dists1 > self.dm_dist]
-                dists2_ = dists2[dists2 > self.dm_dist]
+                dists1_ = dists1[dists1 > self.diff_dist]
+                dists2_ = dists2[dists2 > self.diff_dist]
                 if dists1_.shape[0] == 0:
                     dists1_ = np.array([0.])
                 if dists2_.shape[0] == 0:
                     dists2_ = np.array([0.])
             elif key == 'PDS':
-                dists1_ = (dists1 > self.dm_dist).astype(np.float32)
-                dists2_ = (dists2 > self.dm_dist).astype(np.float32)
+                dists1_ = (dists1 > self.diff_dist).astype(np.float32)
+                dists2_ = (dists2 > self.diff_dist).astype(np.float32)
             elif key == 'ESA':
                 dists1_ = dists1
                 dists2_ = dists2
             if self.abs:
-                dist_results[key] = (dists1_.sum(), dists2_.sum(), (dists1_.sum() + dists2_.sum()) / 2.)
+                dist_results[key] = dists1_.sum(), dists2_.sum(), dists1_.sum() + dists2_.sum()
             else:
-                dist_results[key] = (dists1_.mean(), dists2_.mean(), (dists1_.mean() + dists2_.mean()) / 2.)
+                if self.pct_by_self:
+                    dist_results[key] = dists1_.mean(), dists2_.mean(), (dists1_.sum() + dists2_.sum()) / (len(dists1) + len(dists2))
+                else:
+                    dist_results[key] = dists1_.sum() / len(dists2), dists2_.sum() / len(dists1), (dists1_.sum() + dists2_.sum()) / (len(dists1) + len(dists2))
         return dist_results
 
     def calc_DIADEM(self, swc_file1, swc_file2, jar_path='/home/lyf/Softwares/packages/Diadem/DiademMetric.jar'):
@@ -164,6 +189,9 @@ class DistanceEvaluation(object):
         return score1, score2, score
 
     def calc_distance(self, swc_file1, swc_file2, dist_type='DM', downsampling=True):
+        """
+        output distance matrix between 2 swc files
+        """
         if dist_type == 'DM':
             tree1 = parse_swc(swc_file1)
             tree2 = parse_swc(swc_file2)
@@ -206,6 +234,11 @@ class DistanceEvaluation(object):
         return dist
 
     def calc_distance_triple(self, swc_gt, swc_cmp1, swc_cmp2, dist_type='DM'):
+        """
+        with gold standard or ground truth swc, you can compare another 2 swc's difference against it.
+        For instance, comparing a neuron tree's error rate before and after a pruning process.
+        return: swc1's dist to gt, swc2's dist to gt
+        """
         if dist_type == 'DM':
             tree_gt = parse_swc(swc_gt)
             tree_cmp1 = parse_swc(swc_cmp1)
