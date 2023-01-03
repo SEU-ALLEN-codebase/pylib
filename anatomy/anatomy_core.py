@@ -12,6 +12,7 @@
 
 import json
 import numpy as np
+import pandas as pd
 
 from anatomy.anatomy_config import *
 from file_io import load_image
@@ -58,6 +59,13 @@ def parse_ana_tree(tree_file=None, map_file=None, keyname='id'):
             raise ValueError
 
     return ana_dict
+
+def parse_regions316(regions_file=None):
+    if regions_file is None:
+        regions_file = REGIONS316_FILE
+
+    regions = pd.read_excel(regions_file)
+    return regions
         
         
 def parse_id_map(map_file=None):
