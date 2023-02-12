@@ -9,6 +9,8 @@
 #   Description  : 
 #
 #================================================================
+import os
+import glob
 import SimpleITK as sitk
 import pickle
 from v3d.io import *
@@ -17,7 +19,7 @@ from pathlib import Path
 
 def load_image(img_file, flip_tif=True):
     img_file = Path(img_file)
-    if img_file.suffix in ['.v3draw', '.V3DRAW']:
+    if img_file.suffix in ['.v3draw', '.V3DRAW', '.raw', '.RAW']:
         return load_v3draw(img_file)
     if img_file.suffix in ['.v3dpbd', '.V3DPBD']:
         return PBD().load_image(img_file)
@@ -57,4 +59,37 @@ def save_markers(outfile, markers, radius=0, shape=0, name='', comment='', c=(0,
         for marker in markers:
             x, y, z = marker
             fp.write(f'{x:3f}, {y:.3f}, {z:.3f}, {radius},{shape}, {name}, {comment},0,0,255\n')
+
+def get_tera_res_path(tera_dir, res_ids=None, bracket_escape=True):
+    '''
+    res_ids: int or tuple
+    - if int: it represents the resolution level, starting from the lowest resolution. The value -1
+        means the highest resolution
+    - if tuple: multiple levels 
+    '''
+    
+    resfiles = list(glob.glob(os.path.join(tera_dir, 'RES*')))
+    if len(resfiles) == 0:
+        print(f'Error: the brain {os.path.split(tera_dir)[-1]} is not found!')
+        return 
+    
+    # sort by resolutions
+    ress = sorted(resfiles, key=lambda x: int(x.split('/')[-1][4:-1].split('x')[0]))
+    if type(res_ids) is int:
+        res_path = ress[res_ids]
+        if bracket_escape:
+            res_path = res_path.replace('(', '\(')
+            res_path = res_path.replace(')', '\)')
+        return res_path
+    elif type(res_ids) is tuple:
+        res_pathes = []
+        for idx in res_ids:
+            res_path = ress[idx]
+            if bracket_escape:
+                res_path = res_path.replace('(', '\(')
+                res_path = res_path.replace(')', '\)')
+            res_pathes.append(res_path)
+        return res_pathes
+
+        
 

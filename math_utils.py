@@ -13,6 +13,7 @@
 import math
 import numpy as np
 from scipy.spatial import distance_matrix
+from sklearn.neighbors import KDTree
 
 def calc_included_angles_from_vectors(vecs1, vecs2, return_rad=False, epsilon=1e-7, spacing=None, return_cos=False):
     if vecs1.ndim == 1:
@@ -97,4 +98,29 @@ def memory_safe_min_distances(voxels1, voxels2, num_thresh=50000, return_index=F
         return dists1, dists2, min_indices1, min_indices2
     else:
         return dists1, dists2
+
+def min_distances_between_two_sets(voxels1, voxels2, reciprocal=True, return_index=False):
+    """
+    We should use kd-tree instead of brute-force method for large-scale data inputs. Arguments are:
+    @params voxels1: coordinates of points, np.ndarray in shape[N, 3]
+    @params voxels2: coordinates of points, np.ndarray in shape[M, 3]
+    @params reciprocal: whether to calculate 2->1, except for 1->2
+    @params return_index: whehter to return the indices of points with minimal distances
+    """
+    tree2 = KDTree(voxels2, leaf_size=2)
+    dmin1, imin1 = tree2.query(voxels1, k=1)
+    if reciprocal:
+        tree1 = KDTree(voxels1, leaf_size=2)
+        dmin2, imin2 = tree1.query(voxels2, k=1)
+        if return_index:
+            return dmin1, dmin2, imin1, imin2
+        else:
+            return dmin1, dmin2
+    else:
+        if return_index:
+            return dmin1, imin1
+        else:
+            return dmin1
+
+
 

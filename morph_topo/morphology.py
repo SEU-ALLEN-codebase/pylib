@@ -158,16 +158,16 @@ class AbstractTree(object):
         calculate all fragment lengths, that is the length between two successive points
         """
         # in parallel mode
-        coords = np.array([leaf[2:5] for leaf in self.tree])
         p_coords = []
-        """
         for leaf in self.tree:
             if leaf[-1] != self.p_soma:
                 p_coords.append(self.pos_dict[leaf[-1]][2:5])
             else:
                 p_coords.append(self.pos_dict[self.idx_soma][2:5])
-        """
-        p_coords = np.array([self.pos_dict[leaf[-1]][2:5] if leaf[-1] != self.p_soma else self.pos_dict[self.idx_soma][2:5] for leaf in self.tree])
+        #counted_leaf = [leaf for leaf in self.tree if leaf[-1] != self.p_soma and leaf[-1] in self.pos_dict]
+        #coords = np.array([leaf[2:5] for leaf in counted_leaf])
+        #p_coords = np.array([self.pos_dict[leaf[-1]][2:5] for leaf in counted_leaf])
+        coords = np.array([leaf[2:5] for leaf in self.tree])
         indices = [leaf[0] for leaf in self.tree]
         vectors = coords - p_coords
         lengths = np.linalg.norm(vectors, axis=1)
