@@ -77,7 +77,7 @@ def write_swc(tree, swc_file, header=tuple()):
         fp.write(f'##n type x y z r parent\n')
         for leaf in tree:
             idx, type_, x, y, z, r, p = leaf
-            fp.write(f'{idx:d} {type_:d} {x:.2f} {y:.2f} {z:.2f} {r:.1f} {p:d}\n')
+            fp.write(f'{idx:d} {type_:d} {x:.5f} {y:.5f} {z:.5f} {r:.1f} {p:d}\n')
 
 
 def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
@@ -325,6 +325,11 @@ def crop_tree_by_bbox(morph, bbox, keep_candidate_points=True):
     Crop swc by trim all nodes out-of-bbox. This function differs from `trim_out_of_box` it does
     not assume center cropping
     """
+    if isinstance(morph, list):
+        mtree = morph
+    else:
+        mtree = morph.tree
+
     tree = []
     for i, leaf in enumerate(morph.tree):
         idx, type_, x, y, z, r, p = leaf[:7]
