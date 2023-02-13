@@ -13,11 +13,10 @@
 import os, sys, glob
 
 sys.path.append(sys.path[0] + "/..")
-import math
 import numpy as np
 import subprocess
 from skimage.draw import line_nd
-from scipy.spatial import distance_matrix
+from math_utils import min_distances_between_two_sets
 
 from swc_handler import parse_swc, write_swc, scale_swc, is_in_box
 
@@ -79,7 +78,8 @@ def get_specific_neurite(tree, type_id):
 
 
 class DistanceEvaluation(object):
-    def __init__(self, crop_box, neurite_type='all', diff_dist=2.0, abs=False, pct_by_self=True, soma_radius=0, spacing=(1, 1, 1)):
+    def __init__(self, crop_box, neurite_type='all', diff_dist=2.0, abs=False, pct_by_self=True, soma_radius=0,
+                 spacing=(1, 1, 1)):
         """
         dists between neuron1 and neuron2 are different when you use one of them as background and the other as foreground,
         we define dist1 as neuron1 against neuron2 and vice versa. The trees are voxelized to maximize precision, and the
@@ -102,36 +102,35 @@ class DistanceEvaluation(object):
         self.soma_radius = soma_radius
         self.spacing = spacing
 
-
-    def memory_safe_min_distances(self, voxels1, voxels2, num_thresh=50000):
-        """
-        output the distance matrix between 2 sets of voxel coordinates
-        """
-        # verified
-        nv1 = len(voxels1)
-        nv2 = len(voxels2)
-        if (nv1 > num_thresh) or (nv2 > num_thresh):
-            # use block wise calculation
-            vq1 = [voxels1[i * num_thresh:(i + 1) * num_thresh] for i in range(int(math.ceil(nv1 / num_thresh)))]
-            vq2 = [voxels2[i * num_thresh:(i + 1) * num_thresh] for i in range(int(math.ceil(nv2 / num_thresh)))]
-
-            dists1 = np.ones(nv1) * 1000000.
-            dists2 = np.ones(nv2) * 1000000.
-            for i, v1 in enumerate(vq1):
-                idx00 = i * num_thresh
-                idx01 = i * num_thresh + len(v1)
-                for j, v2 in enumerate(vq2):
-                    idx10 = j * num_thresh
-                    idx11 = j * num_thresh + len(v2)
-
-                    d = distance_matrix(v1, v2)
-                    dists1[idx00:idx01] = np.minimum(d.min(axis=1), dists1[idx00:idx01])
-                    dists2[idx10:idx11] = np.minimum(d.min(axis=0), dists2[idx10:idx11])
-        else:
-            pdist = distance_matrix(voxels1, voxels2)
-            dists1 = pdist.min(axis=1)
-            dists2 = pdist.min(axis=0)
-        return dists1, dists2
+    # def memory_safe_min_distances(self, voxels1, voxels2, num_thresh=50000):
+    #     """
+    #     output the distance matrix between 2 sets of voxel coordinates
+    #     """
+    #     # verified
+    #     nv1 = len(voxels1)
+    #     nv2 = len(voxels2)
+    #     if (nv1 > num_thresh) or (nv2 > num_thresh):
+    #         # use block wise calculation
+    #         vq1 = [voxels1[i * num_thresh:(i + 1) * num_thresh] for i in range(int(math.ceil(nv1 / num_thresh)))]
+    #         vq2 = [voxels2[i * num_thresh:(i + 1) * num_thresh] for i in range(int(math.ceil(nv2 / num_thresh)))]
+    #
+    #         dists1 = np.ones(nv1) * 1000000.
+    #         dists2 = np.ones(nv2) * 1000000.
+    #         for i, v1 in enumerate(vq1):
+    #             idx00 = i * num_thresh
+    #             idx01 = i * num_thresh + len(v1)
+    #             for j, v2 in enumerate(vq2):
+    #                 idx10 = j * num_thresh
+    #                 idx11 = j * num_thresh + len(v2)
+    #
+    #                 d = distance_matrix(v1, v2)
+    #                 dists1[idx00:idx01] = np.minimum(d.min(axis=1), dists1[idx00:idx01])
+    #                 dists2[idx10:idx11] = np.minimum(d.min(axis=0), dists2[idx10:idx11])
+    #     else:
+    #         pdist = distance_matrix(voxels1, voxels2)
+    #         dists1 = pdist.min(axis=1)
+    #         dists2 = pdist.min(axis=0)
+    #     return dists1, dists2
 
     def calc_DMs(self, voxels1, voxels2):
         dist_results = {
@@ -148,7 +147,7 @@ class DistanceEvaluation(object):
         elif len(voxels1) == 0 or len(voxels2) == 0:
             return dist_results
         # distace estimation
-        dists1, dists2 = self.memory_safe_min_distances(voxels1, voxels2)
+        dists1, dists2 = min_distances_between_two_sets(voxels1, voxels2)
 
         for key in dist_results:
             if key == 'DSA':
@@ -164,13 +163,15 @@ class DistanceEvaluation(object):
             elif key == 'ESA':
                 dists1_ = dists1
                 dists2_ = dists2
-            if self.abs:
+            if self.abs:  # absolute quantity of difference, unit: voxel
                 dist_results[key] = dists1_.sum(), dists2_.sum(), dists1_.sum() + dists2_.sum()
             else:
-                if self.pct_by_self:
-                    dist_results[key] = dists1_.mean(), dists2_.mean(), (dists1_.sum() + dists2_.sum()) / (len(dists1) + len(dists2))
-                else:
-                    dist_results[key] = dists1_.sum() / len(dists2), dists2_.sum() / len(dists1), (dists1_.sum() + dists2_.sum()) / (len(dists1) + len(dists2))
+                if self.pct_by_self:  # default
+                    dist_results[key] = dists1_.mean(), dists2_.mean(), (dists1_.sum() + dists2_.sum()) / (
+                            len(dists1) + len(dists2))
+                else:  # ratio relative to the other
+                    dist_results[key] = dists1_.sum() / len(dists2), dists2_.sum() / len(dists1), (
+                            dists1_.sum() + dists2_.sum()) / (len(dists1) + len(dists2))
         return dist_results
 
     def calc_DIADEM(self, swc_file1, swc_file2, jar_path='/home/lyf/Softwares/packages/Diadem/DiademMetric.jar'):

@@ -15,6 +15,7 @@ import numpy as np
 from scipy.spatial import distance_matrix
 from sklearn.neighbors import KDTree
 
+
 def calc_included_angles_from_vectors(vecs1, vecs2, return_rad=False, epsilon=1e-7, spacing=None, return_cos=False):
     if vecs1.ndim == 1:
         vecs1 = vecs1.reshape((1,-1))
@@ -41,6 +42,7 @@ def calc_included_angles_from_vectors(vecs1, vecs2, return_rad=False, epsilon=1e
             return_val = np.rad2deg(rads)
     return return_val    
 
+
 def calc_included_angles_from_coords(anchor_coords, coords1, coords2, return_rad=False, epsilon=1e-7, spacing=None, return_cos=False):
     anchor_coords = np.array(anchor_coords)
     coords1 = np.array(coords1)
@@ -52,6 +54,7 @@ def calc_included_angles_from_coords(anchor_coords, coords1, coords2, return_rad
                 epsilon=epsilon, spacing=spacing,
                 return_cos=return_cos)
     return angs
+
 
 def memory_safe_min_distances(voxels1, voxels2, num_thresh=50000, return_index=False):
     # verified
@@ -98,6 +101,7 @@ def memory_safe_min_distances(voxels1, voxels2, num_thresh=50000, return_index=F
         return dists1, dists2, min_indices1, min_indices2
     else:
         return dists1, dists2
+
 
 def min_distances_between_two_sets(voxels1, voxels2, reciprocal=True, return_index=False):
     """
