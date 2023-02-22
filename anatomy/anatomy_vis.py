@@ -32,22 +32,37 @@ def get_section_boundary(mask, axis=0, c=None, v=255):
         raise NotImplementedError(f'Argument axis supports only 0/1/2, but got {axis}!')
 
     boundary = detect_edges2d(section)
-    if v == 255:
-        boundary = boundary.astype(np.uint8) * v
-    return boundary
+    if v == 1:
+        return boundary
+    else:
+        return boundary.astype(np.uint8) * v
 
 def get_brain_outline2d(mask, axis=0, v=255):
     mask = mask > 0
     mask2d = get_mip_image(mask, axis=axis)
     outline = detect_edges2d(mask2d)
-    if v == 255:
-        outline = outline.astype(np.uint8) * v
-    return outline
+    if v == 1:
+        return outline
+    else:
+        return outline.astype(np.uint8) * v
 
-def get_section_boundary_with_outline(mask, axis=0, sectionX=None, v=255):
+def get_section_boundary_with_outline(mask, axis=0, sectionX=None, v=255, fuse=True):
+    '''
+    Args are:
+    @mask:      3D CCF mask, with each region has unique value, uint8 3d array
+    @axis:      section along which axis
+    @sectionX:  plane/section coordiate along the axis
+    @v:         mask value for edges
+    @fuse:      whether to fuse the regional boundaries and brain outline
+    '''
+
     boundary = get_section_boundary(mask, axis=axis, c=sectionX, v=v)
     outline = get_brain_outline2d(mask, axis=axis, v=v)
-    return boundary, outline
+
+    if fuse:
+        return np.maximum(boundary, outline)
+    else:
+        return boundary, outline
 
 
 if __name__ == '__main__':
@@ -56,11 +71,10 @@ if __name__ == '__main__':
     
     mask_file = './resources/annotation_25.nrrd'
     axis = 0
-    c = 100
+    c = None
     v = 255
     
     mask = load_image(mask_file)
-    boundary, outline = get_section_boundary_with_outline(mask, axis=0, sectionX=c)
-    bo = np.maximum(boundary, outline)
+    bo = get_section_boundary_with_outline(mask, axis=axis, sectionX=c, v=v)
     cv2.imwrite(f'boundary_axis{axis}.png', bo)
 
