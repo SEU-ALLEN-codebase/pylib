@@ -80,7 +80,7 @@ def write_swc(tree, swc_file, header=tuple()):
             fp.write(f'{idx:d} {type_:d} {x:.5f} {y:.5f} {z:.5f} {r:.1f} {p:d}\n')
 
 
-def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
+def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=6):
     for leaf in tree:
         if leaf[p_idx_in_leaf] == p_soma:
             #print('Soma: ', leaf)
@@ -91,7 +91,7 @@ def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
 
 def find_soma_index(tree, p_soma=-1):
     for i, leaf in enumerate(tree):
-        if leaf[-1] == p_soma:
+        if leaf[6] == p_soma:
             return i
     #raise ValueError("find_soma_index: Could not find the somma node!")
     return -99

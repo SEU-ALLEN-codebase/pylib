@@ -59,7 +59,7 @@ def save_v3draw(img: np.ndarray, path):
             endian = 'B'
         elif img.dtype.byteorder == '<':
             endian = 'L'
-        elif img.dtype == '|':
+        elif img.dtype.byteorder == '|':
             endian = 'B'
         else:
             if sys.byteorder == 'little':
