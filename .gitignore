@@ -3,3 +3,4 @@
 */**/*.pyd
 .idea
 venv
+build
