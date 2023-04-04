@@ -46,6 +46,14 @@ def get_brain_outline2d(mask, axis=0, v=255):
     else:
         return outline.astype(np.uint8) * v
 
+def get_brain_mask2d(mask, axis=0, v=255):
+    mask = mask > 0
+    mask2d = get_mip_image(mask, axis=axis)
+    if v == 1:
+        return mask2d
+    else:
+        return mask2d.astype(np.uint8) * v
+
 def get_section_boundary_with_outline(mask, axis=0, sectionX=None, v=255, fuse=True):
     '''
     Args are:

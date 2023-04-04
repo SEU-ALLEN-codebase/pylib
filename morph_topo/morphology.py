@@ -207,6 +207,7 @@ class Morphology(AbstractTree):
 
         path_dict = {}
         path_dict[self.idx_soma] = []
+        print(len(self.tree))
         find_path_dfs(self.idx_soma, path_dict, self.pos_dict, self.child_dict)
         return path_dict
 
