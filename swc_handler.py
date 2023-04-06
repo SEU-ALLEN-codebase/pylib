@@ -7,6 +7,7 @@
 *   Description : 
 *
 ================================================================*"""
+import re
 import numpy as np
 from copy import deepcopy
 from skimage.draw import line_nd
@@ -80,7 +81,7 @@ def write_swc(tree, swc_file, header=tuple()):
             fp.write(f'{idx:d} {type_:d} {x:.5f} {y:.5f} {z:.5f} {r:.1f} {p:d}\n')
 
 
-def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
+def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=6):
     for leaf in tree:
         if leaf[p_idx_in_leaf] == p_soma:
             #print('Soma: ', leaf)
@@ -91,7 +92,7 @@ def find_soma_node(tree, p_soma=-1, p_idx_in_leaf=-1):
 
 def find_soma_index(tree, p_soma=-1):
     for i, leaf in enumerate(tree):
-        if leaf[-1] == p_soma:
+        if leaf[6] == p_soma:
             return i
     #raise ValueError("find_soma_index: Could not find the somma node!")
     return -99
@@ -320,6 +321,25 @@ def scale_swc(swc_file, scale):
         new_tree.append(node)
     return new_tree
 
+def flip_swc(swc_file, axis='y', dim=None):
+    if type(swc_file) == list:
+        tree = swc_file
+    else:
+        tree = parse_swc(swc_file)
+    
+    new_tree = []
+    for node in tree:
+        idx, type_, x, y, z, r, p = node
+        if axis == 'x':
+            x = dim - x
+        elif axis == 'y':
+            y = dim - y
+        elif axis == 'z':
+            z = dim - z
+        node = (idx, type_, x, y, z, r, p)
+        new_tree.append(node)
+    return new_tree
+
 def crop_tree_by_bbox(morph, bbox, keep_candidate_points=True):
     """ 
     Crop swc by trim all nodes out-of-bbox. This function differs from `trim_out_of_box` it does
@@ -399,3 +419,12 @@ def rm_disconnected(tree: list, anchor: int):
                 q.extend(ch[head])
     ind = flag[idx[anchor]]
     return prune(tree, set(t[0] for t, f in zip(tree, flag) if f != ind))
+
+def get_soma_from_swc(swcfile):
+    # fast parse swc information
+    # only for swc, not eswc
+    with open(swcfile) as fp:
+        soma_str = re.search('.* -1\n', fp.read()).group()
+    soma = soma_str.split()
+    return soma
+

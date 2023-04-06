@@ -148,8 +148,11 @@ class SWCChecker(object):
             self.checkers.append(checker)
         
     def run(self, swcfile):
-        # load swc
-        tree = parse_swc(swcfile)
+        if type(swcfile) is str:
+            # load swc
+            tree = parse_swc(swcfile)
+        elif type(swcfile) is list:
+            tree = swcfile
         morph = Morphology(tree)
         errors = []
         for checker in self.checkers:
@@ -159,7 +162,7 @@ class SWCChecker(object):
         
 
 if __name__ == '__main__':
-    swcfile = '/home/lyf/test/test.swc'
+    swcfile = '/home/lyf/test.swc'
     #error_types = ('MultiSoma', )
     
     swc_checker = SWCChecker(debug=True)
