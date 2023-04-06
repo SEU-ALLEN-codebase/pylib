@@ -321,6 +321,25 @@ def scale_swc(swc_file, scale):
         new_tree.append(node)
     return new_tree
 
+def flip_swc(swc_file, axis='y', dim=None):
+    if type(swc_file) == list:
+        tree = swc_file
+    else:
+        tree = parse_swc(swc_file)
+    
+    new_tree = []
+    for node in tree:
+        idx, type_, x, y, z, r, p = node
+        if axis == 'x':
+            x = dim - x
+        elif axis == 'y':
+            y = dim - y
+        elif axis == 'z':
+            z = dim - z
+        node = (idx, type_, x, y, z, r, p)
+        new_tree.append(node)
+    return new_tree
+
 def crop_tree_by_bbox(morph, bbox, keep_candidate_points=True):
     """ 
     Crop swc by trim all nodes out-of-bbox. This function differs from `trim_out_of_box` it does
