@@ -21,5 +21,15 @@ setup(
             extra_compile_args=[],
             extra_link_args=[]
             ),
+        Extension(
+            'cythonized.ada_thr',
+            sources=['cythonized/ada_thr.pyx'],
+            language='c++',
+            include_dirs=[numpy.get_include()],
+            library_dirs=[],
+            libraries=[],
+            extra_compile_args=[],
+            extra_link_args=[]
+            )
     ]
 )
