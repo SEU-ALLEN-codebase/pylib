@@ -7,11 +7,11 @@ cimport numpy as np
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cpdef np.ndarray[np.uint8_t, ndim=3] adaptive_threshold(np.ndarray[np.uint8_t, ndim=3] img, int h=5, int d=3):
+cpdef np.ndarray[np.uint16_t, ndim=3] adaptive_threshold(np.ndarray[np.uint16_t, ndim=3] img, int h=5, int d=3):
     cdef:
         int[3] dim = [img.shape[0], img.shape[1], img.shape[2]]
         int i, j, k, n, dist, count, m
-        np.ndarray[np.uint8_t, ndim=3] out = np.empty(dim, dtype=np.uint8)
+        np.ndarray[np.uint16_t, ndim=3] out = np.empty(dim, dtype=np.uint16)
     for i in range(dim[0]):
         for j in range(dim[1]):
             for k in range(dim[2]):
