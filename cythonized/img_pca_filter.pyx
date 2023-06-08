@@ -6,20 +6,11 @@ from numpy.linalg import eigvalsh
 from skimage.filters import gaussian
 
 
-def img_pca_filter(img, **kwargs):
-    pca = img_pca_test(img, **kwargs)
-    return (img * pca / pca.max()).astype(np.uint8)
-
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def img_pca_test(image, grid_radius=(2, 8, 8), stride=(2, 8, 8), sigma=1.):
-    assert len(image.shape) == 3
-    if image.dtype == np.uint8:
-        image = (image / image.max() * 255).astype(np.uint8)
+cpdef np.ndarray[np.float32_t, ndim=3] img_pca_test(np.ndarray[np.uint16_t, ndim=3] img, grid_radius=(2, 8, 8), stride=(2, 8, 8), float sigma=1.):
     cdef:
-        np.ndarray[np.uint8_t, ndim=3] img = image
         int[3] grid
         int[3] gr = grid_radius
         int[3] st = stride
@@ -54,7 +45,7 @@ def img_pca_test(image, grid_radius=(2, 8, 8), stride=(2, 8, 8), sigma=1.):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cdef double block_pca_test(unsigned char[:, :, :] img, int[3] c, int[3] r):
+cdef double block_pca_test(unsigned short[:, :, :] img, int[3] c, int[3] r):
     cdef:
         int i, j, k, count = 1
         int[3] start
@@ -126,6 +117,6 @@ cdef double block_pca_test(unsigned char[:, :, :] img, int[3] c, int[3] r):
     cov[1, 2] = cc23
     try:
         val = eigvalsh(cov, 'U')
-        return val[2] * (val[2] - val[1]) / (val[2] + val[1]) * (val[2] - val[0]) / (val[2] + val[0])
+        return (val[2] - val[1]) / (val[2] + val[1]) * (val[2] - val[0]) / (val[2] + val[0])
     except:
         return 0
