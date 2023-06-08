@@ -4,3 +4,5 @@
 .idea
 venv
 build
+*.cpp
+*.so
