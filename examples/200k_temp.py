@@ -138,7 +138,7 @@ def prune(morph: Morphology, ind_set: set):
 
 
 def spl_gray(morph, ind, parent, spl_dist):
-    pts = find_point_by_distance(morph.pos_dict[ind][2:5], morph.pos_dict[ind][-1], parent, morph, spl_dist, False)
+    pts = find_point_by_distance(morph.pos_dict[ind][2:5], morph.pos_dict[ind][6], parent, morph, spl_dist, False)
     if len(pts) == 1:
         new_pts = np.array(pts)
     else:
@@ -194,17 +194,17 @@ if __name__ == '__main__':
         angles = np.array(angles)
         to = np.argmin(abs(angles - 180))
         j = protrude[to]
-        jj = morph.pos_dict[j][-1]
+        jj = morph.pos_dict[j][6]
         while j != com_node:
             for k in morph.child_dict[jj]:
                 if k != j:
                     rm_ind.add(k)
             j = jj
-            jj = morph.pos_dict[j][-1]
+            jj = morph.pos_dict[j][6]
 
     awry_angle = set()
     for n, l in morph.pos_dict.items():
-        if morph.child_dict.get(n) is not None and len(morph.child_dict[n]) > 1 and morph.pos_dict[n][-1] != -1:
+        if morph.child_dict.get(n) is not None and len(morph.child_dict[n]) > 1 and morph.pos_dict[n][6] != -1:
             center, anchor_p, anchor_ch, protrude, com_node = get_anchors(morph, [n], spline_dist)
             angles = anchor_angles(center, np.array(anchor_p), np.array(anchor_ch), spacing=(1, 1, 4))
             angles = np.array(angles)
