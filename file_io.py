@@ -29,16 +29,16 @@ def load_image(img_file, flip_tif=True):
     return img
 
 
-def save_image(outfile, img: np.ndarray, flip_tif=True):
+def save_image(outfile, img: np.ndarray, flip_tif=True, useCompression=False):
     outfile = Path(outfile)
     if outfile.suffix in ['.v3draw', '.V3DRAW']:
         save_v3draw(img, outfile)
     elif outfile.suffix in ['.TIF', '.TIFF', '.tif', '.tiff']:
         if flip_tif:
             img = np.flip(img, axis=-2)
-        sitk.WriteImage(sitk.GetImageFromArray(img), str(outfile))
+        sitk.WriteImage(sitk.GetImageFromArray(img), str(outfile), useCompression=useCompression)
     else:
-        sitk.WriteImage(sitk.GetImageFromArray(img), str(outfile))
+        sitk.WriteImage(sitk.GetImageFromArray(img), str(outfile), useCompression=useCompression)
     return True
 
 
