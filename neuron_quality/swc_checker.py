@@ -81,8 +81,9 @@ class MultifurcationChecker(AbstractErrorChecker):
         return no_multifur
 
 class TypeErrorChecker(AbstractErrorChecker):
-    def __init__(self, debug):
+    def __init__(self, debug, ignore_3_4=True):
         super(TypeErrorChecker, self).__init__(debug)
+        self.ignore_3_4 = ignore_3_4
 
     def __call__(self, morph):
         paths = morph.get_all_paths()
@@ -93,16 +94,23 @@ class TypeErrorChecker(AbstractErrorChecker):
             if len(types_set) == 1:
                 continue
             else:
-                types_group = list(groupby(types))
-                num_switch = len(types_group)
-                if num_switch > 2:
+                if self.ignore_3_4:
+                    new_types = [3 if v == 4 else v for v in types]
+                    types_group = list(groupby(new_types))
+                else:
+                    types_group = list(groupby(types))
+
+                num_switch = len(types_group) - 1
+                if num_switch > 1:
                     if self.debug:
-                        print('Too many type switches!')
+                        print('Too many type switches:')
+                        for v in types_group:
+                            print(f'  --> {v[0]}')
                         for t, p in zip(types, path[:-1]):
                             print(f'({t}, {p})', end=" ")
                         print('\n')
                     return False
-                elif num_switch == 2:
+                elif num_switch == 1:
                     v1, v2 = types_group[0][0], types_group[1][0]
                     if (v1 == 2) and (v2 in [3,4]): 
                         continue
@@ -146,7 +154,7 @@ class SWCChecker(object):
         'Loop': 5,  # detect nodes with identical coordinates
     }
 
-    def __init__(self, error_types=(), debug=False):
+    def __init__(self, error_types=(), debug=False, ignore_3_4=False):
         if not error_types:
             error_types = self.ERROR_TYPES
         
@@ -154,7 +162,10 @@ class SWCChecker(object):
         gvs = globals()
         for error_type in error_types:
             check_name = error_type + 'Checker'
-            checker = gvs[check_name](debug=debug)
+            if error_type == 'TypeError':
+                checker = gvs[check_name](debug=debug, ignore_3_4=ignore_3_4)
+            else:
+                checker = gvs[check_name](debug=debug)
             self.checkers.append(checker)
         
     def run(self, swcfile):
