@@ -93,15 +93,25 @@ class TypeErrorChecker(AbstractErrorChecker):
             if len(types_set) == 1:
                 continue
             else:
-                types_group = groupby(types)
-                num_switch = len(list(types_group))
+                types_group = list(groupby(types))
+                num_switch = len(types_group)
                 if num_switch > 2:
                     if self.debug:
-                        print('Warning: the swc has possible wrong neurite types!')
+                        print('Too many type switches!')
                         for t, p in zip(types, path[:-1]):
                             print(f'({t}, {p})', end=" ")
                         print('\n')
                     return False
+                elif num_switch == 2:
+                    v1, v2 = types_group[0][0], types_group[1][0]
+                    if (v1 == 2) and (v2 in [3,4]): 
+                        continue
+                    else:
+                        print(f'Wrong type switch: {v2} --> {v1}')
+                        for t, p in zip(types, path[:-1]):
+                            print(f'({t}, {p})', end=" ")
+                        print('\n')
+                        return False
         return True        
 
 class LoopChecker(AbstractErrorChecker):

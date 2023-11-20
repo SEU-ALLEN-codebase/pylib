@@ -9,6 +9,9 @@
 #   Description  : 
 #
 #================================================================
+
+import os
+import glob
 import numpy as np
 from file_io import load_image, save_image
 
@@ -33,6 +36,14 @@ def image_histeq(image, number_bins=256):
     image_equalized = np.interp(image.flatten(), bins[:-1], cdf)
 
     return image_equalized.reshape(image.shape), cdf
+
+def montage_images_for_folder(img_dir, sw, sh, prefix=''):
+    imgfiles = list(glob.glob(os.path.join(img_dir, '*.png')))
+    swh = sw * sh
+    for i in range(0, len(imgfiles), swh):
+        subset = imgfiles[i : i + swh]
+        args_str = f'montage {" ".join(subset)} -tile {sw}x{sh} montage_{prefix}_{i:04d}.png'
+        os.system(args_str)
 
 
 class AbastractCropImage:
