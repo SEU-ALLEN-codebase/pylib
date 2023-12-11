@@ -15,6 +15,7 @@ import SimpleITK as sitk
 import pickle
 from v3d.io import *
 from pathlib import Path
+from swc_handler import parse_swc, write_swc
 
 
 def load_image(img_file, flip_tif=True):
@@ -59,6 +60,36 @@ def save_markers(outfile, markers, radius=0, shape=0, name='', comment='', c=(0,
         for marker in markers:
             x, y, z = marker
             fp.write(f'{x:3f}, {y:.3f}, {z:.3f}, {radius},{shape}, {name}, {comment},0,0,255\n')
+
+def generate_ano_file(swcfile, outdir=None):
+    tree = parse_swc(swcfile)
+    swcname = os.path.split(swcfile)[-1]
+
+    if outdir is None:
+        apofile = f'{swcname}.apo'
+        anofile = f'{swcname}.ano'
+    else:
+        apofile = os.path.join(outdir, f'{swcname}.apo')
+        anofile = os.path.join(outdir, f'{swcname}.ano')
+    
+    fapo = open(apofile, 'w')
+    fapo.write('##n,orderinfo,name,comment,z,x,y, pixmax,intensity,sdev,volsize,mass,,,, color_r,color_g,color_b\n')
+
+    with open(anofile, 'w') as fp:
+        fp.write(f'APOFILE={apofile}\n')
+        fp.write(f'SWCFILE={swcname}\n')
+
+    new_tree = []
+    for node in tree:
+        idx, type_, x, y, z, r, pid = node[:7]
+        if pid == -1:
+            fapo.write(f'{idx}, , ,, {z},{x},{y},0.000,0.000,0.000,314.159,0.000,,,,0,255,255\n')
+        new_node = (idx, type_, x, y, z, r, pid)
+        new_tree.append(new_node)
+    write_swc(new_tree, swcname)
+
+    # generate apo file
+    fapo.close()
 
 def get_tera_res_path(tera_dir, res_ids=None, bracket_escape=True):
     '''
