@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 
 #================================================================
 #   Copyright (C) 2023 Yufeng Liu (Braintell, Southeast University). All rights reserved.
@@ -48,11 +49,11 @@ class DistanceEvaluation(object):
         return ds
 
     def run(self, reconfile, gsfile):
-        if type(reconfile) is str:
+        if type(reconfile) is str or isinstance(reconfile, os.PathLike):
             tree1 = parse_swc(reconfile)
         else:
             tree1 = reconfile
-        if type(gsfile) is str:
+        if type(gsfile) is str or isinstance(reconfile, os.PathLike):
             tree2 = parse_swc(gsfile)
         else:
             tree2 = gsfile
