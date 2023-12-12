@@ -140,6 +140,43 @@ class LoopChecker(AbstractErrorChecker):
             return False
         return True
 
+class SingleTreeChecker(AbstractErrorChecker):
+    def __init__(self, debug):
+        super(SingleTreeChecker, self).__init__(debug)
+
+    def __call__(self, morph):
+        childs_l = [node[0] for node in morph.tree]
+        parents_l = [node[6] for node in morph.tree]
+        childs = set(childs_l)
+        parents = set(parents_l)
+
+        pc = parents - childs
+        cp = childs - parents
+
+        if len(childs) != len(morph.tree):
+            return False
+
+        vpc = len(pc) - 1
+        if vpc != 0:
+            print(vpc, pc)
+            return False
+
+        nos = sum([idx == -1 for idx in parents_l]) == 1
+        if nos != 1:
+            print('--> No. of somas is not 1', nos)
+            return False
+
+        niso = 0
+        for idx1, idx2 in (childs_l, parents_l)::
+            if idx1 == idx2:
+                niso += 1
+        niso == 0
+        if not niso:
+            print('==> incorrent node index', niso)
+            return False
+
+        return True
+
 class SWCChecker(object):
     """
     Check the common errors of swc file
@@ -152,6 +189,7 @@ class SWCChecker(object):
         'Multifurcation': 3,
         'TypeError': 4,
         'Loop': 5,  # detect nodes with identical coordinates
+        'SingleTree',
     }
 
     def __init__(self, error_types=(), debug=False, ignore_3_4=False):
