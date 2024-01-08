@@ -420,11 +420,11 @@ def rm_disconnected(tree: list, anchor: int):
     ind = flag[idx[anchor]]
     return prune(tree, set(t[0] for t, f in zip(tree, flag) if f != ind))
 
-def get_soma_from_swc(swcfile):
+def get_soma_from_swc(swcfile, match_str='.* -1\n'):
     # fast parse swc information
     # only for swc, not eswc
     with open(swcfile) as fp:
-        soma_str = re.search('.* -1\n', fp.read()).group()
+        soma_str = re.search(match_str, fp.read()).group()
     soma = soma_str.split()
     return soma
 

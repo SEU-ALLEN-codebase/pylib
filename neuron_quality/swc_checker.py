@@ -122,9 +122,9 @@ class TypeErrorChecker(AbstractErrorChecker):
                         return False
         return True        
 
-class LoopChecker(AbstractErrorChecker):
+class DuplicateNodesChecker(AbstractErrorChecker):
     def __init__(self, debug):
-        super(LoopChecker, self).__init__(debug)
+        super(DuplicateNodesChecker, self).__init__(debug)
 
     def __call__(self, morph):
         coords = [node[2:5] for node in morph.tree]
@@ -154,6 +154,7 @@ class SingleTreeChecker(AbstractErrorChecker):
         cp = childs - parents
 
         if len(childs) != len(morph.tree):
+            print(len(childs), len(morph.tree))
             return False
 
         vpc = len(pc) - 1
@@ -167,15 +168,32 @@ class SingleTreeChecker(AbstractErrorChecker):
             return False
 
         niso = 0
-        for idx1, idx2 in (childs_l, parents_l)::
+        for idx1, idx2 in zip(childs_l, parents_l):
             if idx1 == idx2:
                 niso += 1
-        niso == 0
-        if not niso:
+        if niso > 0:
             print('==> incorrent node index', niso)
             return False
 
         return True
+
+class TripletSomaChecker(AbstractErrorChecker):
+    def __init__(self, debug):
+        super(TripletSomaChecker, self).__init__(debug)
+
+    def __call__(self, morph):
+        node1 = morph.pos_dict[1]
+        node2 = morph.pos_dict[2]
+        node3 = morph.pos_dict[3]
+
+        flag = (node1[-1] == -1) and (node2[-1] == 1) and (node3[-1] == 1)
+        
+        flag = flag and ((node1[2] == node2[2]) and (node1[2] == node3[2]))
+        flag = flag and ((node1[4] == node2[4]) and (node1[4] == node3[4]))
+        flag = flag and ((node1[3] == node2[3] + node1[5]) and (node1[3] == node3[3] - node1[5]))
+
+        return flag
+
 
 class SWCChecker(object):
     """
@@ -188,8 +206,8 @@ class SWCChecker(object):
         'ParentZeroIndex': 2,
         'Multifurcation': 3,
         'TypeError': 4,
-        'Loop': 5,  # detect nodes with identical coordinates
-        'SingleTree',
+        'DuplicateNodes': 5,  # detect nodes with identical coordinates
+        'SingleTree': 6,
     }
 
     def __init__(self, error_types=(), debug=False, ignore_3_4=False):
@@ -212,11 +230,14 @@ class SWCChecker(object):
             tree = parse_swc(swcfile)
         elif type(swcfile) is list:
             tree = swcfile
+        else:
+            raise ValueError(f"Type {type(swcfile)} for `swcfile` is incorrect!")
         morph = Morphology(tree)
         errors = []
         for checker in self.checkers:
             err = checker(morph)
             errors.append(err)
+            print(checker, err)
         return errors
         
 
