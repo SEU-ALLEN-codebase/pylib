@@ -215,6 +215,7 @@ class SWCChecker(object):
             error_types = self.ERROR_TYPES
         
         self.checkers = []
+        self.debug = debug
         gvs = globals()
         for error_type in error_types:
             check_name = error_type + 'Checker'
@@ -237,7 +238,15 @@ class SWCChecker(object):
         for checker in self.checkers:
             err = checker(morph)
             errors.append(err)
-            print(checker, err)
+        
+        if self.debug:
+            flag = True
+            for err in errors:
+                flag = flag and err
+
+            if (not flag) and (type(swcfile) is str):
+                print(swcfile, errors)
+
         return errors
         
 
