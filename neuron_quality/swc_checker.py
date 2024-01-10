@@ -187,11 +187,11 @@ class TripletSomaChecker(AbstractErrorChecker):
         node3 = morph.pos_dict[3]
 
         flag = (node1[-1] == -1) and (node2[-1] == 1) and (node3[-1] == 1)
-        
-        flag = flag and ((node1[2] == node2[2]) and (node1[2] == node3[2]))
-        flag = flag and ((node1[4] == node2[4]) and (node1[4] == node3[4]))
-        flag = flag and ((node1[3] == node2[3] + node1[5]) and (node1[3] == node3[3] - node1[5]))
-
+ 
+        eps = 1e-5       
+        flag = flag and ((node1[2] - node2[2] < eps) and (node1[2] - node3[2] < eps))
+        flag = flag and ((node1[4] - node2[4] < eps) and (node1[4] - node3[4] < eps))
+        flag = flag and ((node1[3] - node2[3] - node1[5] < eps) and (node1[3] - node3[3] + node1[5] < eps))
         return flag
 
 
