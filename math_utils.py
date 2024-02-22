@@ -13,7 +13,7 @@
 import math
 import numpy as np
 from scipy.spatial import distance_matrix
-from sklearn.neighbors import KDTree, BallTrue
+from sklearn.neighbors import KDTree, BallTree
 
 
 def calc_included_angles_from_vectors(vecs1, vecs2, return_rad=False, epsilon=1e-7, spacing=None, return_cos=False):
@@ -114,7 +114,7 @@ def min_distances_between_two_sets(voxels1, voxels2, topk=1, reciprocal=True, re
     @params return_index: whehter to return the indices of points with minimal distances
     """
     if tree_type == 'BallTree':
-        ftree = BallTrue
+        ftree = BallTree
     elif tree_type == 'KDTree':
         ftree = KDTree
 
