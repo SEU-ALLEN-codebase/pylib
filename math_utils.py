@@ -103,7 +103,8 @@ def memory_safe_min_distances(voxels1, voxels2, num_thresh=50000, return_index=F
         return dists1, dists2
 
 
-def min_distances_between_two_sets(voxels1, voxels2, topk=1, reciprocal=True, return_index=False, tree_type='BallTree'):
+def min_distances_between_two_sets(voxels1, voxels2, topk=1, reciprocal=True, return_index=False, 
+            tree_type='BallTree', metric='euclidean'):
     """
     We should use kd-tree instead of brute-force method for large-scale data inputs. Arguments are:
     @params voxels1: coordinates of points, np.ndarray in shape[N, 3]
@@ -117,10 +118,10 @@ def min_distances_between_two_sets(voxels1, voxels2, topk=1, reciprocal=True, re
     elif tree_type == 'KDTree':
         ftree = KDTree
 
-    tree2 = ftree(voxels2)
+    tree2 = ftree(voxels2, metric=metric)
     dmin1, imin1 = tree2.query(voxels1, k=topk)
     if reciprocal:
-        tree1 = ftree(voxels1)
+        tree1 = ftree(voxels1, metric=metric)
         dmin2, imin2 = tree1.query(voxels2, k=topk)
         if return_index:
             return dmin1, dmin2, imin1, imin2
