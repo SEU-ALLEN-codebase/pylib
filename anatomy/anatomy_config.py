@@ -17,6 +17,7 @@ __CUR_ABS_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 ANATOMY_TREE_FILE = os.path.join(__CUR_ABS_PATH, 'resources/tree.json')
 ID_MAP_RES25_FILE = os.path.join(__CUR_ABS_PATH, 'resources/annotation25_16bit_id_mapping.json')
 MASK_CCF25_FILE = os.path.join(__CUR_ABS_PATH, 'resources/annotation_25.nrrd')
+MASK_CCF25_R314_FILE = os.path.join(__CUR_ABS_PATH, 'resources/annotation_25_R314.nrrd')
 
 REGIONS316_FILE = os.path.join(__CUR_ABS_PATH, 'resources/CCFv3_Summary_Structures.xlsx')
 
