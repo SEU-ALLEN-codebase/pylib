@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from anatomy.anatomy_config import *
-from file_io import load_image
+from file_io import load_image, save_image
 
 def parse_ana_tree(tree_file=None, map_file=None, keyname='id'):
     if tree_file is None:
@@ -160,11 +160,35 @@ def get_regional_neighbors_cuda(mask_file=None, radius=5):
 
     return rn_dict
 
+def generate_mask314(mask_file=None, rmap_file='./resources/region671_to_region314.pkl'):
+    # load the region mapper from original mask to R314
+    with open(rmap_file, 'rb') as fp:
+        rmapper = pickle.load(fp)[1]
+    if mask_file is None:
+        mask_file = MASK_CCF25_FILE
+    mask = load_image(mask_file)
+    
+    mm = mask.copy()
+    orig_regions = [i for i in np.unique(mm) if i != 0]
+    for i, reg in enumerate(orig_regions):
+        mi = mask == reg
+        if reg not in rmapper:
+            print(f'--> region id: {reg}')
+            continue
+        mm[mi] = rmapper[reg]
+        if i % 20 == 0:
+            print(i)
+
+    return mm
+
 if __name__ == '__main__':
     import pickle
     
-    radius = 5
-    rn_dict = get_regional_neighbors_cuda(radius=radius)
-    with open('./resources/regional_neighbors_res25_radius5.pkl', 'wb') as fp:
-        pickle.dump(rn_dict, fp)
+    #radius = 5
+    #rn_dict = get_regional_neighbors_cuda(radius=radius)
+    #with open('./resources/regional_neighbors_res25_radius5.pkl', 'wb') as fp:
+    #    pickle.dump(rn_dict, fp)
+
+    new_mask = generate_mask314()
+    save_image('annotation_25_R314.nrrd', new_mask)
 
