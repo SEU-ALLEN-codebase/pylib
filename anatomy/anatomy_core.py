@@ -172,7 +172,10 @@ def generate_mask314(mask_file=None, rmap_file='./resources/region671_to_region3
     orig_regions = [i for i in np.unique(mm) if i != 0]
     for i, reg in enumerate(orig_regions):
         mi = mask == reg
-        if reg not in rmapper:
+        if reg in (81, 98, 108, 129, 140, 145, 153, 164):
+            mm[mi] = 999999 #ventricles
+            continue
+        elif reg not in rmapper:
             print(f'--> region id: {reg}')
             continue
         mm[mi] = rmapper[reg]
@@ -190,5 +193,5 @@ if __name__ == '__main__':
     #    pickle.dump(rn_dict, fp)
 
     new_mask = generate_mask314()
-    save_image('annotation_25_R314.nrrd', new_mask)
+    save_image('annotation_25_R314.nrrd', new_mask, useCompression=True)
 
