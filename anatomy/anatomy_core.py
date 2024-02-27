@@ -172,7 +172,7 @@ def generate_mask314(mask_file=None, rmap_file='./resources/region671_to_region3
     orig_regions = [i for i in np.unique(mm) if i != 0]
     for i, reg in enumerate(orig_regions):
         mi = mask == reg
-        if reg in (81, 98, 108, 129, 140, 145, 153, 164):
+        if reg in VENTRILES:
             mm[mi] = 999999 #ventricles
             continue
         elif reg not in rmapper:
@@ -184,6 +184,16 @@ def generate_mask314(mask_file=None, rmap_file='./resources/region671_to_region3
 
     return mm
 
+def get_salient_regions_mask671():
+    total = REGION671
+    ventriles = set(VENTRILES)
+    fibers = set(FIBER_TRACTS)
+    salients = []
+    for rid in total:
+        if (rid not in ventriles) and (rid not in fibers):
+            salients.append(rid)
+    print(np.array(salients))
+
 if __name__ == '__main__':
     import pickle
     
@@ -192,6 +202,5 @@ if __name__ == '__main__':
     #with open('./resources/regional_neighbors_res25_radius5.pkl', 'wb') as fp:
     #    pickle.dump(rn_dict, fp)
 
-    new_mask = generate_mask314()
-    save_image('annotation_25_R314.nrrd', new_mask, useCompression=True)
+    get_salient_regions_mask671()
 
