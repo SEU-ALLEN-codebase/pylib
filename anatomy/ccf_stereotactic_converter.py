@@ -12,7 +12,7 @@ from file_io import load_image, save_image
 from anatomy.anatomy_config import MASK_CCF25_FILE
 
 __RX_CCF25__, __RY_CCF25__, __RZ_CCF25__ = 216, 18, 228
-__ROTATE_Z__ = -5.
+__ROTATE_Z__ = 5.
 __SCALE_Y__ = 0.9434
 
 def matrix_from_axis_angle(a):
