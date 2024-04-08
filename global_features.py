@@ -61,15 +61,15 @@ def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
     return features
 
 
-def calc_global_features_from_foler(swc_dir, outfile):
+def calc_global_features_from_folder(swc_dir, outfile=None):
 
     features_all = []
     iswc = 0
     t0 = time.time()
     for swcfile in glob.glob(os.path.join(swc_dir, '*swc')):
         print(swcfile)
-        #prefix = os.path.splitext(os.path.split(swcfile)[-1])[0]
-        prefix = os.path.split(swcfile)[-1]
+        prefix = os.path.splitext(os.path.split(swcfile)[-1])[0]
+        #prefix = os.path.split(swcfile)[-1]
         features = calc_global_features(swcfile)
         features_all.append([prefix, *features])
 
@@ -78,7 +78,8 @@ def calc_global_features_from_foler(swc_dir, outfile):
             print(f'--> {iswc} in {time.time() - t0:.2f} s')
 
     df = pd.DataFrame(features_all, columns=['',  *__FEAT_NAMES22__])
-    df.to_csv(outfile, float_format='%g', index=False)
+    if outfile is not None:
+        df.to_csv(outfile, float_format='%g', index=False)
     return df
 
 
