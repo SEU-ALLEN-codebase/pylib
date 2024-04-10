@@ -16,6 +16,12 @@ from scipy.spatial import distance_matrix
 from sklearn.neighbors import KDTree, BallTree
 
 
+def get_exponent_and_mantissa(float_v, ndigits=2):
+    exponent = math.floor(math.log10(abs(float_v)))
+    mantissa = round(abs(float_v) * 10 ** (-exponent), ndigits)
+    return exponent, mantissa
+
+
 def calc_included_angles_from_vectors(vecs1, vecs2, return_rad=False, epsilon=1e-7, spacing=None, return_cos=False):
     if vecs1.ndim == 1:
         vecs1 = vecs1.reshape((1,-1))
