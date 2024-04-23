@@ -19,6 +19,12 @@ def detect_edges2d(img2d):
     edges = (gx*gx + gy*gy) != 0
     return edges
 
+def detect_edges3d(img3d):
+    img = img3d.astype(float)
+    gx, gy, gz = np.gradient(img)
+    edges = (gx*gx + gy*gy + gz*gz) != 0
+    return edges
+
 def get_section_boundary(mask, axis=0, c=None, v=255):
     if c == None:
         c = mask.shape[axis] // 2

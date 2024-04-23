@@ -25,6 +25,23 @@ def get_mip_image(img3d, axis=0, mode='MAX'):
 
     return img2d
 
+def crop_nonzero_mask(mask3d, pad=0):
+    # get the boundary of region
+    nzcoords = mask3d.nonzero()
+    nzcoords_t = np.array(nzcoords).transpose()
+    zmin, ymin, xmin = nzcoords_t.min(axis=0)
+    zmax, ymax, xmax = nzcoords_t.max(axis=0)
+
+    sz, sy, sx = mask3d.shape
+    zs = max(0, zmin-pad)
+    ze = min(sz, zmax+pad+1)
+    ys = max(0, ymin-pad)
+    ye = min(sy, ymax+pad+1)
+    xs = max(0, xmin-pad)
+    xe = min(sx, xmax+pad+1)
+    sub_mask = mask3d[zs:ze, ys:ye, xs:xe]
+    return sub_mask, (zs, ze, ys, ye, xs, xe)
+
 def image_histeq(image, number_bins=256):
     # from http://www.janeriksolem.net/histogram-equalization-with-python-and.html
     # get image histogram
