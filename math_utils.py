@@ -17,6 +17,8 @@ from sklearn.neighbors import KDTree, BallTree
 
 
 def get_exponent_and_mantissa(float_v, ndigits=2):
+    if float_v == 0:
+        return None, 0
     exponent = math.floor(math.log10(abs(float_v)))
     mantissa = round(abs(float_v) * 10 ** (-exponent), ndigits)
     return exponent, mantissa

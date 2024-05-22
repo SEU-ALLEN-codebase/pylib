@@ -194,6 +194,13 @@ def get_salient_regions_mask671():
             salients.append(rid)
     print(np.array(salients))
 
+def get_struct_from_id_path(id_path, bstructs):
+    for idx in id_path[::-1]:
+        if idx in bstructs:
+            return idx
+    else:
+        return 0
+
 if __name__ == '__main__':
     import pickle
     

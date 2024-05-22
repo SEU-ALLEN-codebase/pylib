@@ -38,6 +38,30 @@ FIBER_TRACTS = (6, 54, 62, 78, 93, 102, 117, 125, 158, 190, 198, 229, 237,
                 949, 956, 964, 971, 986, 1009, 1016, 1043, 1051, 1060, 1092, 
                 1108, 1116, 1123)
 
+# Brain structures
+BSTRUCTS4 = {
+    688: 'CTX',
+    623: 'CNU', # STR + PAL
+    512: 'CB',
+    343: 'BS'   # IB(549(TH) + HY), MB, HB
+}
+
+BSTRUCTS13 = {
+    519: "CBN",
+    528: "CBX",
+    703: "CTXsp",
+    1089: "HPF",
+    1097: "HY",
+    315: "Isocortex",
+    313: "MB",
+    354: "MY",
+    688: "OLF",
+    771: "P",
+    803: "PAL",
+    477: "STR",
+    549: "TH",
+}
+
 # Regional indices for the original 671 salient brain regions in the CCFv3 atlas/mask
 REGION671 = [        1,         2,         6,         7,         9,
               10,        12,        15,        17,        19,        20,
