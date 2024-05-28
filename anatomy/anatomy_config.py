@@ -46,6 +46,16 @@ BSTRUCTS4 = {
     343: 'BS'   # IB(549(TH) + HY), MB, HB
 }
 
+BSTRUCTS7 = {
+    688: 'CTX',
+    623: 'CNU',
+    313: 'MB',
+    549: 'TH',
+    512: 'CB',
+    1065: 'HB',
+    1097: 'HY'
+}
+
 BSTRUCTS13 = {
     519: "CBN",
     528: "CBX",

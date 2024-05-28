@@ -184,7 +184,7 @@ def generate_mask314(mask_file=None, rmap_file='./resources/region671_to_region3
 
     return mm
 
-def get_salient_regions_mask671():
+def get_salient_regions_mask671(salient_mask_file=None):
     total = REGION671
     ventriles = set(VENTRILES)
     fibers = set(FIBER_TRACTS)
@@ -194,12 +194,29 @@ def get_salient_regions_mask671():
             salients.append(rid)
     print(np.array(salients))
 
+    if type(salient_mask_file) is str:
+        mask = load_image(MASK_CCF25_FILE)
+        bmask = mask != 0
+        nrid = 0
+        for rid in total:
+            if (rid in ventriles) or (rid in fibers):
+                cur_mask = mask == rid
+                bmask[cur_mask] = 0
+                
+                nrid += 1
+                if nrid % 10 == 0:
+                    print(nrid)
+
+        bmask = bmask.astype(np.uint8)
+        save_image(salient_mask_file, bmask, useCompression=True)
+
 def get_struct_from_id_path(id_path, bstructs):
     for idx in id_path[::-1]:
         if idx in bstructs:
             return idx
     else:
         return 0
+
 
 if __name__ == '__main__':
     import pickle
@@ -209,5 +226,5 @@ if __name__ == '__main__':
     #with open('./resources/regional_neighbors_res25_radius5.pkl', 'wb') as fp:
     #    pickle.dump(rn_dict, fp)
 
-    get_salient_regions_mask671()
+    get_salient_regions_mask671('salient671_binary_mask.nrrd')
 
