@@ -17,10 +17,11 @@ from swc_handler import tree_to_voxels, parse_swc
 from math_utils import min_distances_between_two_sets
 
 class DistanceEvaluation(object):
-    def __init__(self, dsa_thr=2., resample1=True, resample2=True):
+    def __init__(self, dsa_thr=2., resample1=True, resample2=True, aggregation_type='mean'):
         self.dsa_thr = dsa_thr
         self.resample1 = resample1
         self.resample2 = resample2
+        self.aggregation_type = aggregation_type
 
     def calc_dist(self, voxels1, voxels2):
         ds = {
@@ -44,7 +45,15 @@ class DistanceEvaluation(object):
             elif key == 'ESA':
                 dists1_ = dists1
                 dists2_ = dists2
-            ds[key] = dists1_.mean(), dists2_.mean(), (dists1_.sum() + dists2_.sum()) / (len(dists1) + len(dists2))
+            
+            if self.aggregation_type == 'mean':
+                ds[key] = dists1_.mean(), dists2_.mean(), \
+                          (dists1_.sum() + dists2_.sum()) / (len(dists1) + len(dists2))
+            elif self.aggregation_type == 'median':
+                ds[key] = np.median(dists1_), np.median(dists2_), \
+                          (np.median(dists1_) + np.median(dists2_)) / 2.
+            else:
+                raise NotImplementedError
         ds = np.array(list(ds.values()))
         return ds
 

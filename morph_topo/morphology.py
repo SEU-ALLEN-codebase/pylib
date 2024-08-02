@@ -283,7 +283,7 @@ class Morphology(AbstractTree):
 
         return pruned_tree
 
-    def convert_to_topology_tree(self):
+    def convert_to_topology_tree(self, debug=False):
         """
         The original tree contains unifurcation, which should be merged
         """
@@ -317,7 +317,8 @@ class Morphology(AbstractTree):
         # put the root/soma node
         new_tree.append(self.pos_dict[self.idx_soma])
 
-        print(f'{len(new_tree)} #nodes left after merging of the original {len(self.tree)} # nodes')
+        if debug:
+            print(f'{len(new_tree)} #nodes left after merging of the original {len(self.tree)} # nodes')
         #print(f'{len(self.tips)}, {len(self.bifurcation)}, {len(self.multifurcation)}')
         return new_tree, seg_dict
 

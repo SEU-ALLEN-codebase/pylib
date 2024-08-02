@@ -24,6 +24,7 @@ __FEAT_NAMES22__ = [
 def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
     cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i {swc_file}'
     p = subprocess.check_output(cmd_str, shell=True)
+        
     output = p.decode().splitlines()[37:-2]
     info_dict = {}
     for s in output:
@@ -61,7 +62,7 @@ def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
     return features
 
 
-def calc_global_features_from_folder(swc_dir, outfile=None):
+def calc_global_features_from_folder(swc_dir, outfile=None, robust=True):
 
     features_all = []
     iswc = 0
@@ -70,7 +71,13 @@ def calc_global_features_from_folder(swc_dir, outfile=None):
         print(swcfile)
         prefix = os.path.splitext(os.path.split(swcfile)[-1])[0]
         #prefix = os.path.split(swcfile)[-1]
-        features = calc_global_features(swcfile)
+        if robust:
+            try:
+                features = calc_global_features(swcfile)
+            except ValueError:
+                continue
+        else:
+            features = calc_global_features(swcfile)
         features_all.append([prefix, *features])
 
         iswc += 1
