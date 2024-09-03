@@ -14,12 +14,18 @@ from file_io import load_image
 
 class Projection:
 
-    def __init__(self, use_two_hemispheres=True, resample_scale=8):
+    def __init__(self, use_two_hemispheres=True, resample_scale=8, atlas_file=None):
         # make sure the swc are uniformly sampled, otherwise the estimation
         # should be changed
         self.resample_scale = resample_scale
         # Get the atlas
-        atlas = load_image(MASK_CCF25_FILE)
+        if atlas_file is None:
+            atlas = load_image(MASK_CCF25_FILE)
+            self.ccf_atlas = True
+        else:
+            atlas = load_image(atlas_file)
+            self.ccf_atlas = False
+
         if use_two_hemispheres:
             # get the new atlas with differentiation of left-right hemisphere
             zdim, ydim, xdim = atlas.shape
@@ -42,9 +48,11 @@ class Projection:
 
         t0 = time.time()
         for iaxon, axon_file in enumerate(axon_files):
-            ncoords = pd.read_csv(axon_file, sep=' ', usecols=(2,3,4,6)).values
+            ncoords = pd.read_csv(axon_file, sep=' ', usecols=(2,3,4,6), comment='#', header=None).values
             # flipping
             smask = ncoords[:,-1] == -1
+            if smask.sum() == 0:
+                print(axon_file)
             # convert to CCF-25um
             ncoords[:,:-1] = ncoords[:,:-1] / 25.
             soma_coord = ncoords[smask][0,:-1]
@@ -74,11 +82,13 @@ class Projection:
         projs *= self.resample_scale # to um scale
 
         # zeroing non-salient regions
-        salient_mask = np.array([True if np.fabs(int(col)) in SALIENT_REGIONS else False for col in projs.columns])
-        #keep_mask = (projs.sum() > 0) & salient_mask
-        keep_mask = salient_mask
-        # filter the neurons not in target regions
-        projs = projs.loc[:, keep_mask]
+        if self.ccf_atlas:
+            salient_mask = np.array([True if np.fabs(int(col)) in SALIENT_REGIONS else False for col in projs.columns])
+            #keep_mask = (projs.sum() > 0) & salient_mask
+            keep_mask = salient_mask
+            # filter the neurons not in target regions
+            projs = projs.loc[:, keep_mask]
+        
         projs.to_csv(proj_csv)
 
         return projs
