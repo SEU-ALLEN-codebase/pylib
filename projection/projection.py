@@ -93,3 +93,29 @@ class Projection:
 
         return projs
 
+def preprocess_projections(projs, min_proj=1000., log=True, remove_non_proj_neuron=False,
+                           keep_only_salient_regions=True, is_ccf_atlas=True):
+    # convert the column dtype to integar
+    projs.columns = projs.columns.astype(int)
+
+    if min_proj > 0:
+        projs = projs.copy()
+        projs[projs < min_proj] = 0
+
+    if keep_only_salient_regions and is_ccf_atlas:
+        from anatomy.anatomy_config import SALIENT_REGIONS
+
+        # NOTE that this only works for projection mapping in CCF regions now!
+        salient_col_m = projs.columns.isin(SALIENT_REGIONS) | projs.columns.isin([-i for i in SALIENT_REGIONS])
+        projs = projs.loc[:, projs.columns[salient_col_m]]
+
+    # remove regions without real projection
+    projs = projs.loc[:, projs.columns[projs.sum(axis=0) != 0]]
+    if remove_non_proj_neuron:
+        projs = projs.iloc[np.nonzero(projs.sum(axis=1))[0]]
+
+    # convert to log space
+    projs = np.log(projs+1)
+    return projs
+
+

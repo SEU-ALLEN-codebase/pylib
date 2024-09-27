@@ -22,7 +22,7 @@ __FEAT_NAMES22__ = [
 ]
 
 def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
-    cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i {swc_file}'
+    cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i "{swc_file}"'
     p = subprocess.check_output(cmd_str, shell=True)
         
     output = p.decode().splitlines()[37:-2]
