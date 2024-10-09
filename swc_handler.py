@@ -362,6 +362,47 @@ def crop_tree_by_bbox(morph, bbox, keep_candidate_points=True):
                         tree.append(morph.pos_dict[ch_leaf])
     return tree
 
+def crop_spheric_from_soma(df_tree, radius): # radius in micrometer
+    # NOTE that in this function we use the the pandas.DataFrame as tree object, instead of list
+
+    ###### helper functions #######
+    def dfs(irow, child_dict, good_points, tree):
+        #print(irow)
+        p_idx = tree.loc[irow, 'pid']
+        if (p_idx in good_points) or (p_idx == -1):
+            good_points.add(irow)
+
+        if irow not in child_dict:
+            return
+
+        for new_idx in child_dict[irow]:
+            dfs(new_idx, child_dict, good_points, tree)
+
+    ###### end of helper functions ######
+
+
+    # remove out-of-sphere points
+    sidx = np.nonzero(df_tree.pid == -1)[0][0]
+    sid = df_tree.iloc[sidx].name
+    dxyz = df_tree[['x', 'y', 'z']] - df_tree.iloc[sidx][['x', 'y', 'z']]
+    dR = np.sqrt((dxyz**2).sum(axis=1))
+    tree_in = df_tree[dR < radius]
+    # remove disconnected nodes
+    # first, get the child dict
+    child_dict = {}
+    for irow, row in tree_in.iterrows():
+        if row.pid in child_dict:
+            child_dict[row.pid].append(irow)
+        else:
+            child_dict[row.pid] = [irow]
+    # second, get the to-delete nodes iteratively
+    good_points = set([])
+    dfs(sid, child_dict, good_points, tree_in)
+
+    # third, extract the good points
+    tree_good = tree_in[tree_in.index.isin(good_points)]
+    return tree_good
+
 
 def tree_to_voxels(tree, crop_box):
     # crop_box in (z,y,x) order
