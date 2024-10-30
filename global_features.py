@@ -21,6 +21,31 @@ __FEAT_NAMES22__ = [
     'AverageBifurcationAngleRemote', 'HausdorffDimension'
 ]
 
+FEAT_NAME_DICT = {
+    'N_node': 'Nodes',
+    'Soma_surface': 'SomaSurface',
+    'N_stem': 'Stems',
+    'Number of Bifurcatons': 'Bifurcations',
+    'Number of Branches': 'Branches',
+    'Number of Tips': 'Tips',
+    'Overall Width': 'OverallWidth',
+    'Overall Height': 'OverallHeight',
+    'Overall Depth': 'OverallDepth',
+    'Average Diameter': 'AverageDiameter',
+    'Total Length': 'Length',
+    'Total Surface': 'Surface',
+    'Total Volume': 'Volume',
+    'Max Euclidean Distance': 'MaxEuclideanDistance',
+    'Max Path Distance': 'MaxPathDistance',
+    'Max Branch Order': 'MaxBranchOrder',
+    'Average Contraction': 'AverageContraction',
+    'Average Fragmentation': 'AverageFragmentation',
+    'Average Parent-daughter Ratio': 'AverageParent-daughterRatio',
+    'Average Bifurcation Angle Local': 'AverageBifurcationAngleLocal',
+    'Average Bifurcation Angle Remote': 'AverageBifurcationAngleRemote',
+    'Hausdorff Dimension': 'HausdorffDimension'
+}
+
 def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
     cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i "{swc_file}"'
     p = subprocess.check_output(cmd_str, shell=True)
