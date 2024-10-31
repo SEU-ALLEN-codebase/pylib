@@ -7,13 +7,19 @@ import numpy as np
 import pysal.lib as pslib
 from esda.moran import Moran
 
-def moranI_score(coords, feats, eval_ids=None, reduce_type='average', threshold=0.5):
+def moranI_score(coords, feats, eval_ids=None, reduce_type='average', weight_type='distance', threshold=0.5, k=5):
     """
     The coordinates should be in `mm`, and as type of numpy.array
     The feats should be standardized
     """
     # spatial coherence
-    weights = pslib.weights.DistanceBand.from_array(coords, threshold=threshold)
+    if weight_type == 'distance':
+        weights = pslib.weights.DistanceBand.from_array(coords, threshold=threshold)
+    elif weight_type == 'knn':
+        weights = pslib.weights.KNN.from_array(coords, k=k)
+    else:
+        raise NotImplementedError
+
     avgI = []
     if eval_ids is None:
         if feats.ndim == 1:
