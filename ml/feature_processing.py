@@ -31,4 +31,32 @@ def clip_outliners(df, col_ids=None):
     dft = df.iloc[:,col_ids]
     dft.clip(lower=lower_thres, upper=upper_thres, axis=1, inplace=True)
 
+def standardize_features(dfc, feat_names, epsilon=1e-8, inplace=True):
+    fvalues = dfc[feat_names]
+    fvalues = (fvalues - fvalues.mean()) / (fvalues.std() + epsilon)
+    if inplace:
+        dfc.loc[:, feat_names] = fvalues.values
+    else:
+        dfcc = dfc.copy()
+        dfcc.loc[:, feat_names] = fvalues.values
+        return dfcc
 
+def normalize_features_minmax(dfc, feat_names, epsilon=1e-8, inplace=True):
+    fvalues = dfc[feat_names]
+    fvalues = (fvalues - fvalues.min()) / (fvalues.max() - fvalues.min() + epsilon)
+    if inplace:
+        dfc.loc[:, feat_names] = fvalues.values
+    else:
+        dfcc = dfc.copy()
+        dfcc.loc[:, feat_names] = fvalues.values
+        return dfcc
+
+def normalize_features_by_sum(dfc, feat_names, epsilon=1e-8, inplace=True):
+    fvalues = dfc[feat_names]
+    fvalues = fvalues / (fvalues.sum(axis=1).to_frame().values + epsilon)
+    if inplace:
+        dfc.loc[:, feat_names] = fvalues.values
+    else:
+        dfcc = dfc.copy()
+        dfcc.loc[:, feat_names] = fvalues.values
+        return dfcc
