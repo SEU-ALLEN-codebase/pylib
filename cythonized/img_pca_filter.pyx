@@ -126,6 +126,6 @@ cdef double block_pca_test(unsigned char[:, :, :] img, int[3] c, int[3] r):
     cov[1, 2] = cc23
     try:
         val = eigvalsh(cov, 'U')
-        return val[2] * (val[2] - val[1]) / (val[2] + val[1]) * (val[2] - val[0]) / (val[2] + val[0])
+        return (val[2] - val[1]) / (val[2] + val[1]) * (val[2] - val[0]) / (val[2] + val[0])
     except:
         return 0

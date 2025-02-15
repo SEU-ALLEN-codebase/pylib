@@ -12,7 +12,9 @@ class MyTestCase(unittest.TestCase):
         out = img_pca_filter(img)
         t2 = time.time()
         print(f'used {t2-t1}s.')
-        save_image('d:/test.tiff', out)
+        r = (out / (img + 1.))[img > img.mean() + img.std()].mean()
+        print(r)
+        # save_image('d:/test.tiff', out)
 
     def test_ada(self):
         img = load_image(r"D:\GitHub\Segment-Splicing-Search\data\gt\512_128_tiff\14976_13296_5475.tiff")
