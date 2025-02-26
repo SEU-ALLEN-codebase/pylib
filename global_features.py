@@ -9,6 +9,7 @@ import time
 import subprocess
 import pandas as pd
 import numpy as np
+from multiprocessing import Pool, Manager
 
 
 __FEAT_NAMES22__ = [
@@ -86,32 +87,45 @@ def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
 
     return features
 
-
-def calc_global_features_from_folder(swc_dir, outfile=None, robust=True):
-
-    features_all = []
-    iswc = 0
-    t0 = time.time()
-    for swcfile in glob.glob(os.path.join(swc_dir, '*swc')):
-        print(swcfile)
-        prefix = os.path.splitext(os.path.split(swcfile)[-1])[0]
-        #prefix = os.path.split(swcfile)[-1]
+# helper function
+def _wrapper(swcfile, prefix, out_dict, robust=True):
+    try:  # 修改2：统一异常处理逻辑
+        features = calc_global_features(swcfile)
+        out_dict[prefix] = features
+    except Exception as e:
         if robust:
-            try:
-                features = calc_global_features(swcfile)
-            except ValueError:
-                continue
+            print(f"Error processing {swcfile}: {str(e)}")
         else:
-            features = calc_global_features(swcfile)
-        features_all.append([prefix, *features])
+            raise
+#########
 
-        iswc += 1
-        if iswc % 10 ==  0:
-            print(f'--> {iswc} in {time.time() - t0:.2f} s')
 
-    df = pd.DataFrame(features_all, columns=['',  *__FEAT_NAMES22__])
-    if outfile is not None:
-        df.to_csv(outfile, float_format='%g', index=False)
-    return df
+def calc_global_features_from_folder(swc_dir, outfile=None, robust=True, nprocessors=8):
+    with Manager() as manager:  # 修改3：使用Manager上下文
+        out_dict = manager.dict()  # 创建共享字典
+        arg_list = []
+        
+        # 构建参数列表（包含robust参数）
+        iswc = 0
+        for swcfile in glob.glob(os.path.join(swc_dir, '*.swc')):
+            prefix = os.path.splitext(os.path.basename(swcfile))[0]
+            # debug
+            iswc += 1
+            #if iswc % 10 == 0:
+            #    break
+            arg_list.append((swcfile, prefix, out_dict, robust))  # 修改4：添加robust参数
+            
+        # 修改5：使用with自动管理Pool生命周期
+        with Pool(processes=nprocessors) as pool:
+            pool.starmap(_wrapper, arg_list)
+        
+        # 从共享字典提取数据
+        features_all = [[k, *v] for k, v in out_dict.items()]
+        
+        # 后续处理保持不变
+        df = pd.DataFrame(features_all, columns=['', *__FEAT_NAMES22__])
+        if outfile is not None:
+            df.to_csv(outfile, float_format='%g', index=False)
+        return df
 
 
