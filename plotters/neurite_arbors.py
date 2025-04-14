@@ -22,10 +22,15 @@ from morph_topo import morphology
 
 
 class NeuriteArbors:
-    def __init__(self, swcfile):
+    def __init__(self, swcfile, soma_params=None):
         tree = parse_swc(swcfile)
         self.morph = morphology.Morphology(tree)
         self.morph.get_critical_points()
+
+        self.soma_params = soma_params
+        if soma_params is not None:
+            self.soma_xyz = self.morph.tree[self.morph.index_soma][2:5]
+
 
     def get_paths_of_specific_neurite(self, type_id=None, mip='z'):
         """
@@ -84,11 +89,23 @@ class NeuriteArbors:
         for pos in ['right', 'top', 'bottom', 'left']:
             plt.gca().spines[pos].set_visible(False)
         
+        # soma visualization
+        if self.soma_params is not None:
+            if mip == 'z':
+                soma_xy = self.soma_xyz[:2]
+            elif mip == 'x':
+                soma_xy = self.soma_xyz[1:]
+            elif mip == 'y':
+                soma_xy = (self.soma_xyz[0], self.soma_xyz[2])
+            plt.scatter(soma_xy[0], soma_xy[1], s=self.soma_params['size'], 
+                        color=self.soma_params['color'], alpha=self.soma_params['alpha'],
+                        zorder=100)
+
         # title
         if show_name:
             plt.title(figname)
         #plt.tight_layout()
-        plt.savefig(os.path.join(out_dir, f'{figname}.png'), dpi=200)
+        plt.savefig(os.path.join(out_dir, f'{figname}.png'), dpi=300)
         plt.close()
         
 
