@@ -65,10 +65,18 @@ class NeuriteArbors:
         return paths
 
        
-    def plot_morph_mip(self, type_id, xxyy=None, mip='z', color='r', figname='temp.png', out_dir='.', show_name=False, linewidth=2):
+    def plot_morph_mip(self, type_id, xxyy=None, mip='z', color='r', figname='temp.png', 
+                       out_dir='.', show_name=False, linewidth=2, bkg_transparent=False):
         paths = self.get_paths_of_specific_neurite(type_id, mip=mip)
         
-        plt.figure(figsize=(8,8))
+        if bkg_transparent:
+            plt.figure(figsize=(8,8), facecolor='none', edgecolor='none')
+            ax = plt.gca()
+            ax.set_facecolor('none')
+        else:
+            plt.figure(figsize=(8,8))
+
+
         for path in paths:
             plt.plot(path[:,0], path[:,1], color=color, lw=linewidth)
             
@@ -105,7 +113,11 @@ class NeuriteArbors:
         if show_name:
             plt.title(figname)
         #plt.tight_layout()
-        plt.savefig(os.path.join(out_dir, f'{figname}.png'), dpi=300)
+        if bkg_transparent:
+            plt.savefig(os.path.join(out_dir, f'{figname}.png'), dpi=300, transparent=True,
+                        bbox_inches='tight', pad_inches=0)
+        else:
+            plt.savefig(os.path.join(out_dir, f'{figname}.png'), dpi=300)
         plt.close()
         
 
