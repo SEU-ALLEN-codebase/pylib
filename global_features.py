@@ -10,6 +10,7 @@ import subprocess
 import pandas as pd
 import numpy as np
 from multiprocessing import Pool, Manager
+from subprocess import TimeoutExpired
 
 
 __FEAT_NAMES22__ = [
@@ -47,48 +48,89 @@ FEAT_NAME_DICT = {
     'Hausdorff Dimension': 'HausdorffDimension'
 }
 
-def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
+
+def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x', timeout=60):
     cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i "{swc_file}"'
-    p = subprocess.check_output(cmd_str, shell=True)
-        
-    output = p.decode().splitlines()[37:-2]
+    try:
+        # 启动子进程并设置超时
+        p = subprocess.run(
+            cmd_str, 
+            shell=True, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            timeout=timeout,  # 单位：秒
+            text=True
+        )
+    except TimeoutExpired:
+        # 超时后强制终止进程
+        print(f"Timeout ({timeout}s) for file: {swc_file}")
+        raise RuntimeError(f"Vaa3D timed out on {swc_file}")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Vaa3D failed on {swc_file}: {e.stderr.decode().strip()}")
+
+    # 解析输出，跳过无效行
+    output = p.stdout.splitlines()
     info_dict = {}
     for s in output:
-        it1, it2 = s.split(':')
-        it1 = it1.strip()
-        it2 = it2.strip()
-        info_dict[it1] = float(it2)
+        if ':' not in s:  # 跳过不含冒号的行
+            continue
+        try:
+            it1, it2 = s.split(':', 1)  # 仅分割第一个冒号
+            it1 = it1.strip()
+            it2 = it2.strip()
+            if it1 and it2:  # 确保非空
+                info_dict[it1] = float(it2) if it2.replace('.', '', 1).isdigit() else it2
+        except ValueError:
+            print(f"Ignoring malformed line in {swc_file}: {s}")
+            continue
 
-    # extract the target result
-    #print(info_dict)
-    features = []
-    features.append(int(info_dict['N_node']))
-    features.append(info_dict['Soma_surface'])
-    features.append(int(info_dict['N_stem']))
-    features.append(int(info_dict['Number of Bifurcatons']))
-    features.append(int(info_dict['Number of Branches']))
-    features.append(int(info_dict['Number of Tips']))
-    features.append(info_dict['Overall Width'])
-    features.append(info_dict['Overall Height'])
-    features.append(info_dict['Overall Depth'])
-    features.append(info_dict['Average Diameter'])
-    features.append(info_dict['Total Length'])
-    features.append(info_dict['Total Surface'])
-    features.append(info_dict['Total Volume'])
-    features.append(info_dict['Max Euclidean Distance'])
-    features.append(info_dict['Max Path Distance'])
-    features.append(info_dict['Max Branch Order'])
-    features.append(info_dict['Average Contraction'])
-    features.append(info_dict['Average Fragmentation'])
-    features.append(info_dict['Average Parent-daughter Ratio'])
-    features.append(info_dict['Average Bifurcation Angle Local'])
-    features.append(info_dict['Average Bifurcation Angle Remote'])
-    features.append(info_dict['Hausdorff Dimension'])
+    # 检查必要字段是否存在
+    required_keys = [
+        'N_node', 'Soma_surface', 'N_stem', 'Number of Bifurcatons',
+        'Number of Branches', 'Number of Tips', 'Overall Width',
+        'Overall Height', 'Overall Depth', 'Average Diameter',
+        'Total Length', 'Total Surface', 'Total Volume',
+        'Max Euclidean Distance', 'Max Path Distance', 'Max Branch Order',
+        'Average Contraction', 'Average Fragmentation',
+        'Average Parent-daughter Ratio', 'Average Bifurcation Angle Local',
+        'Average Bifurcation Angle Remote', 'Hausdorff Dimension'
+    ]
+    for key in required_keys:
+        if key not in info_dict:
+            raise ValueError(f"Missing required key '{key}' in Vaa3D output for {swc_file}")
 
+    # 按固定顺序返回特征值
+    features = [
+        int(info_dict['N_node']),
+        info_dict['Soma_surface'],
+        int(info_dict['N_stem']),
+        int(info_dict['Number of Bifurcatons']),
+        int(info_dict['Number of Branches']),
+        int(info_dict['Number of Tips']),
+        info_dict['Overall Width'],
+        info_dict['Overall Height'],
+        info_dict['Overall Depth'],
+        info_dict['Average Diameter'],
+        info_dict['Total Length'],
+        info_dict['Total Surface'],
+        info_dict['Total Volume'],
+        info_dict['Max Euclidean Distance'],
+        info_dict['Max Path Distance'],
+        int(info_dict['Max Branch Order']),
+        info_dict['Average Contraction'],
+        info_dict['Average Fragmentation'],
+        info_dict['Average Parent-daughter Ratio'],
+        info_dict['Average Bifurcation Angle Local'],
+        info_dict['Average Bifurcation Angle Remote'],
+        info_dict['Hausdorff Dimension']
+    ]
     return features
+
 
 # helper function
 def _wrapper(swcfile, prefix, out_dict, robust=True):
+    print(f'Processing: {prefix}')
+
     try:  # 修改2：统一异常处理逻辑
         features = calc_global_features(swcfile)
         out_dict[prefix] = features
@@ -101,6 +143,18 @@ def _wrapper(swcfile, prefix, out_dict, robust=True):
 
 
 def calc_global_features_from_folder(swc_dir, outfile=None, robust=True, nprocessors=8):
+
+    ################## Helper functions #################
+    def is_valid_swc(filepath):
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):  # 非空且非注释行
+                    return True
+            return False  # 文件全为空或注释
+
+    ############ End of helper functions ################
+
     with Manager() as manager:  # 修改3：使用Manager上下文
         out_dict = manager.dict()  # 创建共享字典
         arg_list = []
@@ -113,13 +167,19 @@ def calc_global_features_from_folder(swc_dir, outfile=None, robust=True, nproces
             iswc += 1
             #if iswc % 10 == 0:
             #    break
+            if not is_valid_swc(swcfile):
+                print(prefix)
+                continue
+
             arg_list.append((swcfile, prefix, out_dict, robust))  # 修改4：添加robust参数
             
         # 修改5：使用with自动管理Pool生命周期
+        print('Starts to calculate...')
         with Pool(processes=nprocessors) as pool:
             pool.starmap(_wrapper, arg_list)
         
         # 从共享字典提取数据
+        print('Aggregationg all features')
         features_all = [[k, *v] for k, v in out_dict.items()]
         
         # 后续处理保持不变
