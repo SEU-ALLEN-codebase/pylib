@@ -11,6 +11,10 @@ import pandas as pd
 import numpy as np
 from multiprocessing import Pool, Manager
 from subprocess import TimeoutExpired
+import shutil
+import tempfile
+import atexit
+from pathlib import Path
 
 
 __FEAT_NAMES22__ = [
@@ -49,8 +53,34 @@ FEAT_NAME_DICT = {
 }
 
 
+
+# 全局临时目录（进程退出时自动清理）
+TEMP_DIR = tempfile.mkdtemp(prefix="vaa3d_tmp_")
+atexit.register(lambda: shutil.rmtree(TEMP_DIR, ignore_errors=True))
+
+def _create_temp_copy(src_swc):
+    """创建临时副本，返回无空格的安全路径"""
+    # 生成随机文件名（确保无空格和特殊字符）
+    temp_name = f"tmp_{os.urandom(4).hex()}.swc"
+    temp_path = os.path.join(TEMP_DIR, temp_name)
+    
+    # 创建硬链接（比复制更快，且不占双倍空间）
+    #try:
+    #    os.link(src_swc, temp_path)  # 硬链接
+    #except OSError:
+    shutil.copy2(src_swc, temp_path)  # 回退到实际复制
+    
+    return temp_path
+
+
 def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x', timeout=60):
-    cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i "{swc_file}"'
+    if ' ' in swc_file:
+        # The naming is extremely stupid, but I must handle it anyway!
+        temp_path = _create_temp_copy(swc_file)
+        cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i "{temp_path}"'
+    else:
+        cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x global_neuron_feature -f compute_feature -i "{swc_file}"'
+    
     try:
         # 启动子进程并设置超时
         p = subprocess.run(
@@ -128,11 +158,11 @@ def calc_global_features(swc_file, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x', ti
 
 
 # helper function
-def _wrapper(swcfile, prefix, out_dict, robust=True):
+def _wrapper(swcfile, prefix, out_dict, robust=True, timeout=60):
     print(f'Processing: {prefix}')
 
     try:  # 修改2：统一异常处理逻辑
-        features = calc_global_features(swcfile)
+        features = calc_global_features(swcfile, timeout=timeout)
         out_dict[prefix] = features
     except Exception as e:
         if robust:
@@ -142,7 +172,7 @@ def _wrapper(swcfile, prefix, out_dict, robust=True):
 #########
 
 
-def calc_global_features_from_folder(swc_dir, outfile=None, robust=True, nprocessors=8):
+def calc_global_features_from_folder(swc_dir, outfile=None, robust=True, nprocessors=8, timeout=60):
 
     ################## Helper functions #################
     def is_valid_swc(filepath):
@@ -170,8 +200,8 @@ def calc_global_features_from_folder(swc_dir, outfile=None, robust=True, nproces
             if not is_valid_swc(swcfile):
                 print(prefix)
                 continue
-
-            arg_list.append((swcfile, prefix, out_dict, robust))  # 修改4：添加robust参数
+            
+            arg_list.append((swcfile, prefix, out_dict, robust, timeout))  # 修改4：添加robust参数
             
         # 修改5：使用with自动管理Pool生命周期
         print('Starts to calculate...')
