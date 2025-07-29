@@ -183,7 +183,7 @@ class NeuriteArbors:
         # 将图形转换为numpy数组
         canvas = FigureCanvas(fig)
         canvas.draw()
-        morph_img = np.array(canvas.renderer.buffer_rgba())[..., :3]  # 去掉alpha通道
+        morph_img = np.array(canvas.renderer.buffer_rgba())#[..., :3]  # 去掉alpha通道
         
         # 调整尺寸与原始图像完全一致
         if img_shape is not None:
