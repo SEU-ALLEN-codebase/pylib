@@ -29,8 +29,7 @@ class NeuriteArbors:
         self.morph.get_critical_points()
 
         self.soma_params = soma_params
-        if soma_params is not None:
-            self.soma_xyz = self.morph.tree[self.morph.index_soma][2:5]
+        self.soma_xyz = self.morph.tree[self.morph.index_soma][2:5]
 
 
     def get_paths_of_specific_neurite(self, type_id=None, mip='z'):
@@ -153,6 +152,7 @@ class NeuriteArbors:
             dpi = 100
         
         # 创建图形
+        bkg_transparent = False
         fig = plt.figure(figsize=figsize, facecolor='none' if bkg_transparent else 'white')
         ax = fig.add_axes([0, 0, 1, 1], facecolor='none' if bkg_transparent else 'white')
         
@@ -170,13 +170,37 @@ class NeuriteArbors:
         
         # 绘制胞体
         if self.soma_params is not None:
+            # 计算正确的标记大小（使在数据坐标中直径≈2*soma_radius_pixels）
+            x_min, x_max = xxyy[0], xxyy[1]
+            y_min, y_max = xxyy[2], xxyy[3]
+            
+            # 数据坐标范围（像素）
+            data_width_pixels = x_max - x_min
+            data_height_pixels = y_max - y_min
+            
+            # 图形尺寸（英寸）
+            fig_width_inches, fig_height_inches = figsize
+            
+            # 计算数据坐标与图形尺寸的比例（像素/英寸）
+            pixels_per_inch_width = data_width_pixels / fig_width_inches
+            pixels_per_inch_height = data_height_pixels / fig_height_inches
+            
+            # 取平均值（假设像素是正方形的）
+            pixels_per_inch = (pixels_per_inch_width + pixels_per_inch_height) / 2
+            
+            # 计算标记大小（scatter的s参数是直径的平方）
+            points_per_inch = 72  # 1点=1/72英寸
+            diameter_points = 2 * self.soma_params['size'] * (points_per_inch / pixels_per_inch)
+            marker_size = diameter_points ** 2
+
+
             if mip == 'z':
                 soma_xy = self.soma_xyz[:2]
             elif mip == 'x':
                 soma_xy = self.soma_xyz[1:]
             elif mip == 'y':
                 soma_xy = (self.soma_xyz[0], self.soma_xyz[2])
-            ax.scatter(soma_xy[0], soma_xy[1], s=self.soma_params['size'],
+            ax.scatter(soma_xy[0], soma_xy[1], s=marker_size,
                       color=self.soma_params['color'], alpha=self.soma_params['alpha'],
                       zorder=100)
         
