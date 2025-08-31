@@ -18,13 +18,16 @@ from skimage.draw import line_nd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
-from swc_handler import parse_swc, write_swc, get_specific_neurite, NEURITE_TYPES
+from swc_handler import parse_swc, write_swc, scale_swc, get_specific_neurite, NEURITE_TYPES
 from morph_topo import morphology
 
 
 class NeuriteArbors:
-    def __init__(self, swcfile, soma_params=None):
+    def __init__(self, swcfile, soma_params=None, scalef=1.0):
         tree = parse_swc(swcfile)
+        if scalef != 1.0:
+            tree = scale_swc(tree, scalef)
+
         self.morph = morphology.Morphology(tree)
         self.morph.get_critical_points()
 
