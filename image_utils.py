@@ -20,8 +20,8 @@ from scipy.sparse.csgraph import dijkstra
 from sklearn.neighbors import KDTree
 from skimage import morphology
 from skimage.draw import line_nd
-from skan.csr import skeleton_to_csgraph
-from skan import Skeleton, summarize
+#from skan.csr import skeleton_to_csgraph
+#from skan import Skeleton, summarize
 
 from file_io import load_image, save_image
 

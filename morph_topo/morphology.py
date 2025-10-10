@@ -314,8 +314,13 @@ class Morphology(AbstractTree):
                     seg_start_id = par_node_id
                 
                 cur_node_id = par_node_id
+
         # put the root/soma node
-        new_tree.append(self.pos_dict[self.idx_soma])
+        #new_tree.append(self.pos_dict[self.idx_soma])
+        # in case of multiple root nodes
+        for node in self.tree:
+            if node[6] == -1:
+                new_tree.append(node)
 
         if debug:
             print(f'{len(new_tree)} #nodes left after merging of the original {len(self.tree)} # nodes')
