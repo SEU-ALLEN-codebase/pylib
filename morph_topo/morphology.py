@@ -301,7 +301,11 @@ class Morphology(AbstractTree):
             while True:
                 par_node_id = self.pos_dict[cur_node_id][6]    # parent node
                 if par_node_id == -1:
+                    # in case the root has only one child
+                    if len(self.child_dict[cur_node_id]) == 1:
+                        new_tree.append(update_node(self.pos_dict[seg_start_id], cur_node_id))
                     break
+                
                 if par_node_id in self.unifurcation:
                     seg_dict[seg_start_id].append(par_node_id)
                 else:
