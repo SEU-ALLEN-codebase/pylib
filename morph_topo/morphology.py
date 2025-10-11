@@ -336,7 +336,7 @@ class Topology(AbstractTree):
     def __init__(self, tree, p_soma=-1):
         super(Topology, self).__init__(tree, p_soma=p_soma)
         self.get_critical_points()
-        self.calc_order_dict()
+        #self.calc_order_dict()
 
     def calc_order_dict(self):
         # calculate the order of each node as well as largest node through DFS
@@ -349,12 +349,14 @@ class Topology(AbstractTree):
                 order_dict[child_idx] = order_dict[idx] + 1
                 traverse_dfs(child_idx, child_dict, order_dict)
 
-        # Firstly, for topology analysis, we must firstly merge unifurcation nodes
-        
+
+        # we should firstly extract all root nodes
+        root_ids = [node[0] for node in self.tree if node[6] == -1] 
 
         order_dict = {}
-        order_dict[self.idx_soma] = 0
-        traverse_dfs(self.idx_soma, self.child_dict, order_dict)
+        for root_id in root_ids:
+            order_dict[root_id] = 0
+            traverse_dfs(root_id, self.child_dict, order_dict)
         self.order_dict = order_dict
 
     def get_num_branches(self):
