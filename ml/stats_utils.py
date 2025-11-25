@@ -22,7 +22,7 @@ def my_mannwhitneyu(data1, data2, size_correction=True, size_thresh=1000, altern
         elif mw_p < 0.05 and abs(cles - 0.5) > 0.05:
             significance = '*'
         else:
-            significance = 'ns'
+            significance = 'n.s.'
     else:  # non-correction
         if mw_p < 0.001:
             significance = '***'
@@ -31,7 +31,7 @@ def my_mannwhitneyu(data1, data2, size_correction=True, size_thresh=1000, altern
         elif mw_p < 0.05:
             significance = '*'
         else:
-            significance = 'ns'
+            significance = 'ns..'
 
     return stat, mw_p, cles, significance
 

@@ -366,6 +366,8 @@ def crop_tree_by_bbox(morph, bbox, keep_candidate_points=True):
 
 def crop_spheric_from_soma(df_tree, radius): # radius in micrometer
     # NOTE that in this function we use the the pandas.DataFrame as tree object, instead of list
+    # dataframe: index, cololumns = (type, x, y, z, r, pid)
+    # the dataframe is parsed using: pd.read_csv(in_swc, sep=' ', names=('type', 'x', 'y', 'z', 'r', 'pid'), comment='#', index_col=0)
 
     ###### helper functions #######
     def dfs(irow, child_dict, good_points, tree):
@@ -389,6 +391,7 @@ def crop_spheric_from_soma(df_tree, radius): # radius in micrometer
     dxyz = df_tree[['x', 'y', 'z']] - df_tree.iloc[sidx][['x', 'y', 'z']]
     dR = np.sqrt((dxyz**2).sum(axis=1))
     tree_in = df_tree[dR < radius]
+    
     # remove disconnected nodes
     # first, get the child dict
     child_dict = {}
