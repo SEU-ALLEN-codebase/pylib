@@ -3,7 +3,7 @@ import numpy
 
 setup(
     name='pylib',
-    version='',
+    version='0.2.1',
     packages=['v3d', 'v3d.terafly', 'graph', 'anatomy', 'morph_topo', 'neuron_quality'],
     url='',
     license='MIT',

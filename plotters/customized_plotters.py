@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 def sns_jointplot(data, x, y, xlim, ylim, hue, out_fig, markersize=10, hue_order=None, 
-                  palette=None, axis_off=False):
+                  palette=None, axis_off=False, ms_scale=1.0):
     if hue_order is None:
         hue_order = sorted(np.unique(data[hue]))
 
@@ -35,7 +35,7 @@ def sns_jointplot(data, x, y, xlim, ylim, hue, out_fig, markersize=10, hue_order
         ms = 2
     else:
         ms = 1.5
-    g.ax_joint.legend(markerscale=ms, labelspacing=0.2, handletextpad=0, frameon=False)
+    g.ax_joint.legend(markerscale=ms*ms_scale, labelspacing=0.2, handletextpad=0, frameon=False)
 
     if axis_off:
         plt.axis('off')
