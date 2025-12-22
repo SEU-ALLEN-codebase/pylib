@@ -301,7 +301,11 @@ class Morphology(AbstractTree):
             while True:
                 par_node_id = self.pos_dict[cur_node_id][6]    # parent node
                 if par_node_id == -1:
+                    # in case the root has only one child
+                    if len(self.child_dict[cur_node_id]) == 1:
+                        new_tree.append(update_node(self.pos_dict[seg_start_id], cur_node_id))
                     break
+                
                 if par_node_id in self.unifurcation:
                     seg_dict[seg_start_id].append(par_node_id)
                 else:
@@ -314,8 +318,13 @@ class Morphology(AbstractTree):
                     seg_start_id = par_node_id
                 
                 cur_node_id = par_node_id
+
         # put the root/soma node
-        new_tree.append(self.pos_dict[self.idx_soma])
+        #new_tree.append(self.pos_dict[self.idx_soma])
+        # in case of multiple root nodes
+        for node in self.tree:
+            if node[6] == -1:
+                new_tree.append(node)
 
         if debug:
             print(f'{len(new_tree)} #nodes left after merging of the original {len(self.tree)} # nodes')
@@ -327,7 +336,7 @@ class Topology(AbstractTree):
     def __init__(self, tree, p_soma=-1):
         super(Topology, self).__init__(tree, p_soma=p_soma)
         self.get_critical_points()
-        self.calc_order_dict()
+        #self.calc_order_dict()
 
     def calc_order_dict(self):
         # calculate the order of each node as well as largest node through DFS
@@ -340,12 +349,14 @@ class Topology(AbstractTree):
                 order_dict[child_idx] = order_dict[idx] + 1
                 traverse_dfs(child_idx, child_dict, order_dict)
 
-        # Firstly, for topology analysis, we must firstly merge unifurcation nodes
-        
+
+        # we should firstly extract all root nodes
+        root_ids = [node[0] for node in self.tree if node[6] == -1] 
 
         order_dict = {}
-        order_dict[self.idx_soma] = 0
-        traverse_dfs(self.idx_soma, self.child_dict, order_dict)
+        for root_id in root_ids:
+            order_dict[root_id] = 0
+            traverse_dfs(root_id, self.child_dict, order_dict)
         self.order_dict = order_dict
 
     def get_num_branches(self):
