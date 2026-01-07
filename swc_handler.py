@@ -483,19 +483,20 @@ def resample_swc(swc_in, swc_out, step=2, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D
         subprocess.run(f"sed -i 's/pid1/pid\\n1/g' {swc_out}; sed -i 's/ -1 -1//g' {swc_out}", shell=True)
     return True
 
-def sort_swc(swc_in, swc_out=None, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x'):
+def sort_swc(swc_in, swc_out=None, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x', retype=True):
     cmd_str = f'xvfb-run -a -s "-screen 0 640x480x16" {vaa3d} -x sort_neuron_swc -f sort_swc -i {swc_in} -o {swc_out}'
     p = subprocess.check_output(cmd_str, shell=True)
 
-    # retype
-    df = pd.read_csv(swc_out, sep=' ', names=('#id', 'type', 'x', 'y', 'z', 'r', 'p'), comment='#', index_col=False)
-    df['type'] = 3
-    df.loc[0, 'type'] = 1
-    df.to_csv(swc_out, sep=' ', index=False)
+    if retype:
+        # retype
+        df = pd.read_csv(swc_out, sep=' ', names=('#id', 'type', 'x', 'y', 'z', 'r', 'p'), comment='#', index_col=False)
+        df['type'] = 3
+        df.loc[0, 'type'] = 1
+        df.to_csv(swc_out, sep=' ', index=False)
 
     return True
 
-def resample_sort_swc(swc_in, swc_out):
+def resample_sort_swc(swc_in, swc_out, retype=True):
     resample_swc(swc_in, swc_out)
-    sort_swc(swc_out, swc_out)
+    sort_swc(swc_out, swc_out, retype=retype)
 
