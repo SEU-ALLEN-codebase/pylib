@@ -55,6 +55,9 @@ def parse_ana_tree(tree_file=None, map_file=None, keyname='id'):
             ana_dict[name] = reg
         elif keyname == 'id':
             ana_dict[idx] = reg
+        elif keyname == 'full name':
+            full_name = reg['name']
+            ana_dict[full_name] = reg
         else:
             raise ValueError
 
