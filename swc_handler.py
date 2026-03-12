@@ -7,12 +7,15 @@
 *   Description : 
 *
 ================================================================*"""
+import os
 import re
 import numpy as np
 from copy import deepcopy
+from collections import defaultdict
 from skimage.draw import line_nd
 import subprocess
 import pandas as pd
+
 
 NEURITE_TYPES = {
     'soma': [1],
@@ -499,4 +502,146 @@ def sort_swc(swc_in, swc_out=None, vaa3d='/opt/Vaa3D_x.1.1.4_ubuntu/Vaa3D-x', re
 def resample_sort_swc(swc_in, swc_out, retype=True):
     resample_swc(swc_in, swc_out)
     sort_swc(swc_out, swc_out, retype=retype)
+
+
+def resample_swc_customized(in_swc, out_swc, step_length=1.0):
+    """
+    高性能 SWC 重采样算法
+    :param in_swc: 输入的 SWC 文件路径
+    :param step_length: 重采样步长 (默认 1.0 um)
+    :return: 包含重采样后所有行(含注释)的字符串列表，可直接 writelines() 写入文件
+    """
+    if not os.path.exists(in_swc):
+        raise FileNotFoundError(f"找不到文件: {in_swc}")
+        
+    # 1. 极速读取文件到内存
+    with open(in_swc, 'r') as f:
+        swc_lines = f.readlines()
+
+    nodes = {}       # 存储节点数据: node_id -> [n, type, x, y, z, r, parent]
+    children = defaultdict(list)
+    comments = []    # 用于原封不动保留头部的注释信息
+    
+    # 2. 极速解析非注释行
+    for line in swc_lines:
+        line_s = line.strip()
+        if not line_s:
+            continue
+        if line_s.startswith('#'):
+            comments.append(line_s + '\n')
+            continue
+            
+        parts = line_s.split()
+        if len(parts) >= 7:
+            n, t, x, y, z, r, p = parts
+            nodes[n] = [int(n), int(t), float(x), float(y), float(z), float(r), p]
+            if p != '-1':
+                children[p].append(n)
+                
+    # 3. 寻找关键拓扑节点 (Key Nodes: 胞体、分叉点、末端点)
+    key_nodes = set(['-1'])
+    roots = []  # 记录所有的根节点
+    
+    for n, data in nodes.items():
+        p = data[6]
+        c_list = children[n]
+        if p == '-1':
+            roots.append(n)
+            key_nodes.add(n)
+        elif len(c_list) != 1:  # 分叉点 (>1) 或 叶子节点 (0)
+            key_nodes.add(n)
+
+    # 4. 严格自顶向下 (Top-down BFS) 提取分支，保证拓扑排序 (Parent ID < Child ID)
+    branches = []
+    queue = roots.copy()
+    
+    while queue:
+        start_node = queue.pop(0) # 取出一个已知的上游关键节点
+        
+        # 遍历它发出的所有直接下游子分支
+        for child in children[start_node]:
+            branch_path = [start_node]
+            curr = child
+            
+            # 顺藤摸瓜，直到碰见下一个关键节点
+            while curr not in key_nodes:
+                branch_path.append(curr)
+                # 容错：如果形态断裂没有子节点了，强行中断
+                if not children[curr]: 
+                    break
+                curr = children[curr][0] # 非关键节点必然只有唯一一个子节点
+                
+            branch_path.append(curr) # 把游历到的终点(下一个关键节点)加入
+            branches.append(branch_path)
+            
+            # 如果终点是分叉点，加入队列，等待下一次向下探索
+            if len(children[curr]) > 0:
+                queue.append(curr)
+
+    # 5. Numpy 向量化插值重采样
+    new_nodes = []
+    new_id_counter = 1
+    key_node_map = {} # 存储旧关键节点到新节点 ID 的映射
+    
+    for branch in branches:
+        # 提取当前分支的 XYZR 坐标矩阵
+        coords = np.array([[nodes[n][2], nodes[n][3], nodes[n][4], nodes[n][5]] for n in branch])
+        types = [nodes[n][1] for n in branch] # 类别
+        
+        # 计算线段之间的欧氏距离和累积弧长
+        diffs = np.diff(coords[:, :3], axis=0)
+        segment_lengths = np.linalg.norm(diffs, axis=1)
+        cum_length = np.insert(np.cumsum(segment_lengths), 0, 0) # [0, L1, L1+L2, ...]
+        
+        total_length = cum_length[-1]
+        
+        # 根据步长生成新的采样点位置 (保证包含起点和终点)
+        if total_length <= step_length:
+            new_cum = np.array([0, total_length])
+        else:
+            new_cum = np.arange(0, total_length, step_length)
+            if total_length - new_cum[-1] > 1e-5: # 确保终点被加入
+                new_cum = np.append(new_cum, total_length)
+                
+        # 使用 Numpy 沿弧长线性插值 XYZ 和 R
+        new_x = np.interp(new_cum, cum_length, coords[:, 0])
+        new_y = np.interp(new_cum, cum_length, coords[:, 1])
+        new_z = np.interp(new_cum, cum_length, coords[:, 2])
+        new_r = np.interp(new_cum, cum_length, coords[:, 3])
+        
+        # 6. 重新分配 ID 和重建拓扑连接
+        parent_node_original = branch[0]
+        child_node_original = branch[-1]
+        
+        # 确定起点的新 ID
+        if parent_node_original in key_node_map:
+            current_parent_id = key_node_map[parent_node_original]
+        else:
+            # 根节点初始化
+            current_parent_id = new_id_counter
+            key_node_map[parent_node_original] = current_parent_id
+            new_nodes.append(f"{current_parent_id} {types[0]} {new_x[0]:.3f} {new_y[0]:.3f} {new_z[0]:.3f} {new_r[0]:.3f} -1\n")
+            new_id_counter += 1
+
+        # 生成中间节点和终点
+        for i in range(1, len(new_cum)):
+            this_id = new_id_counter
+            new_id_counter += 1
+            
+            # 最后一个点继承原始的类型，中间点使用起点类型
+            t = types[-1] if i == len(new_cum) - 1 else types[0] 
+            
+            new_nodes.append(f"{this_id} {t} {new_x[i]:.3f} {new_y[i]:.3f} {new_z[i]:.3f} {new_r[i]:.3f} {current_parent_id}\n")
+            current_parent_id = this_id
+            
+        # 记录终点（关键节点）的新 ID 映射，供下游分支衔接使用
+        key_node_map[child_node_original] = current_parent_id
+    
+    new_swc_lines = comments + new_nodes
+
+    if out_swc and isinstance(out_swc, str):
+        with open(out_swc, 'w') as fp:
+            fp.writelines(new_swc_lines)
+
+    return new_swc_lines
 
