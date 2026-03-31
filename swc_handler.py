@@ -504,20 +504,7 @@ def resample_sort_swc(swc_in, swc_out, retype=True):
     sort_swc(swc_out, swc_out, retype=retype)
 
 
-def resample_swc_customized(in_swc, out_swc, step_length=1.0):
-    """
-    高性能 SWC 重采样算法
-    :param in_swc: 输入的 SWC 文件路径
-    :param step_length: 重采样步长 (默认 1.0 um)
-    :return: 包含重采样后所有行(含注释)的字符串列表，可直接 writelines() 写入文件
-    """
-    if not os.path.exists(in_swc):
-        raise FileNotFoundError(f"找不到文件: {in_swc}")
-        
-    # 1. 极速读取文件到内存
-    with open(in_swc, 'r') as f:
-        swc_lines = f.readlines()
-
+def resample_swc_customized_core(swc_lines, step_length=1.0):
     nodes = {}       # 存储节点数据: node_id -> [n, type, x, y, z, r, parent]
     children = defaultdict(list)
     comments = []    # 用于原封不动保留头部的注释信息
@@ -636,6 +623,24 @@ def resample_swc_customized(in_swc, out_swc, step_length=1.0):
             
         # 记录终点（关键节点）的新 ID 映射，供下游分支衔接使用
         key_node_map[child_node_original] = current_parent_id
+
+    return new_nodes
+
+def resample_swc_customized(in_swc, out_swc, step_length=1.0):
+    """
+    高性能 SWC 重采样算法
+    :param in_swc: 输入的 SWC 文件路径
+    :param step_length: 重采样步长 (默认 1.0 um)
+    :return: 包含重采样后所有行(含注释)的字符串列表，可直接 writelines() 写入文件
+    """
+    if not os.path.exists(in_swc):
+        raise FileNotFoundError(f"找不到文件: {in_swc}")
+        
+    # 1. 极速读取文件到内存
+    with open(in_swc, 'r') as f:
+        swc_lines = f.readlines()
+
+    new_nodes = resample_swc_customized_core(swc_lines, step_length)
     
     new_swc_lines = comments + new_nodes
 
