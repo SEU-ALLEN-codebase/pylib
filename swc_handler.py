@@ -624,7 +624,7 @@ def resample_swc_customized_core(swc_lines, step_length=1.0):
         # 记录终点（关键节点）的新 ID 映射，供下游分支衔接使用
         key_node_map[child_node_original] = current_parent_id
 
-    return new_nodes
+    return new_nodes, comments
 
 def resample_swc_customized(in_swc, out_swc, step_length=1.0):
     """
@@ -640,7 +640,7 @@ def resample_swc_customized(in_swc, out_swc, step_length=1.0):
     with open(in_swc, 'r') as f:
         swc_lines = f.readlines()
 
-    new_nodes = resample_swc_customized_core(swc_lines, step_length)
+    new_nodes, comments = resample_swc_customized_core(swc_lines, step_length)
     
     new_swc_lines = comments + new_nodes
 
