@@ -65,7 +65,7 @@ BSTRUCTS13 = {
     315: "Isocortex",
     313: "MB",
     354: "MY",
-    688: "OLF",
+    698: "OLF",
     771: "P",
     803: "PAL",
     477: "STR",

@@ -220,6 +220,34 @@ def get_struct_from_id_path(id_path, bstructs):
     else:
         return 0
 
+def get_structures_from_regions(region_ids, ana_dict, struct_dict=None, return_name=True):
+    if struct_dict is None:
+        struct_dict = {
+            688: 'CTX',
+            623: 'CNU',
+            512: 'CB',
+            343: 'BS'
+        }
+    structures = []
+    default_sname = '' if return_name else np.NaN
+
+    for idx in region_ids:
+        if idx in ana_dict:
+            id_path = ana_dict[idx]['structure_id_path']
+            for pid in id_path:
+                if pid in struct_dict:
+                    if return_name:
+                        structures.append(struct_dict[pid])
+                    else:
+                        structures.append(pid)
+                    break
+            else:
+                structures.append(default_sname)
+        else:
+            structures.append(default_sname)
+
+    return np.array(structures)
+
 
 if __name__ == '__main__':
     import pickle
